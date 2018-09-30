@@ -33,8 +33,8 @@
 #include <hb-ft.h>
 #include <hb-ot.h>
 
-const char *text = "طرح‌نَما";
-const char *path =
+static const char *text = "طرح‌نَما";
+static const char *path =
 #if defined(__linux__)
 		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 #elif defined(_WIN32) || defined(_WIN64)
@@ -43,11 +43,11 @@ const char *path =
 		"/Library/Fonts/Tahoma.ttf";
 #endif
 
-int num_threads = 30;
-int num_iters = 200;
+static int num_threads = 30;
+static int num_iters = 200;
 
-hb_font_t *font;
-hb_buffer_t *ref_buffer;
+static hb_font_t *font;
+static hb_buffer_t *ref_buffer;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -69,13 +69,13 @@ validity_check (hb_buffer_t *buffer) {
     hb_buffer_serialize_glyphs (buffer, 0, hb_buffer_get_length (ref_buffer),
 				out, sizeof (out), NULL,
 				font, HB_BUFFER_SERIALIZE_FORMAT_TEXT,
-				HB_BUFFER_SERIALIZE_FLAG_DEFAULT);
-    fprintf (stderr, "Actual: %s\n", out);
+				HB_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES);
+    fprintf (stderr, "Actual:   %s\n", out);
 
     hb_buffer_serialize_glyphs (ref_buffer, 0, hb_buffer_get_length (ref_buffer),
 				out, sizeof (out), NULL,
 				font, HB_BUFFER_SERIALIZE_FORMAT_TEXT,
-				HB_BUFFER_SERIALIZE_FLAG_DEFAULT);
+				HB_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES);
     fprintf (stderr, "Expected: %s\n", out);
 
     exit (1);
@@ -101,8 +101,8 @@ thread_func (void *data)
   return 0;
 }
 
-void
-test_body ()
+static void
+test_body (void)
 {
   int i;
   int num_threads = 30;
@@ -153,8 +153,12 @@ main (int argc, char **argv)
   fill_the_buffer (ref_buffer);
 
   test_body ();
-  hb_ft_font_set_funcs (font);
-  test_body ();
+
+  /* hb-font backed by FreeType functions can only be used from
+   * one thread at a time, because that's FT_Face's MT guarantee.
+   * So, disable this, even though it works "most of the time". */
+  //hb_ft_font_set_funcs (font);
+  //test_body ();
 
   hb_buffer_destroy (ref_buffer);
 
