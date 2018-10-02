@@ -214,7 +214,7 @@ m4_ifdef([GOBJECT_INTROSPECTION_CHECK], [
 			have_introspection=true
 		fi
 	else
-		AM_CONDITIONAL([HAVE_INTROSPECTION], false)
+		AC_MSG_ERROR([Gobject-Introspection requires Gobject.])
 	fi
 ], [
 	AM_CONDITIONAL([HAVE_INTROSPECTION], false)
