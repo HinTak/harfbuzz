@@ -69,12 +69,14 @@ halant_group = (z?.H.(ZWJ.N?)?);
 final_halant_group = halant_group | H.ZWNJ;
 halant_or_matra_group = (final_halant_group | matra_group{0,4});
 
+complex_syllable_tail = (halant_group.cn){0,4} halant_or_matra_group syllable_tail;
 
-consonant_syllable =	(Repha|CS)? (cn.halant_group){0,4} cn halant_or_matra_group syllable_tail;
-vowel_syllable =	reph? V.n? (ZWJ | (halant_group.cn){0,4} halant_or_matra_group syllable_tail);
-standalone_cluster =	((Repha|CS)? PLACEHOLDER | reph? DOTTEDCIRCLE).n? (halant_group.cn){0,4} halant_or_matra_group syllable_tail;
+
+consonant_syllable =	(Repha|CS)? cn complex_syllable_tail;
+vowel_syllable =	reph? V.n? (ZWJ | complex_syllable_tail);
+standalone_cluster =	((Repha|CS)? PLACEHOLDER | reph? DOTTEDCIRCLE).n? complex_syllable_tail;
 symbol_cluster = 	symbol syllable_tail;
-broken_cluster =	reph? n? (halant_group.cn){0,4} halant_or_matra_group syllable_tail;
+broken_cluster =	reph? n? complex_syllable_tail;
 other =			any;
 
 main := |*
@@ -91,10 +93,9 @@ main := |*
 
 #define found_syllable(syllable_type) \
   HB_STMT_START { \
-    if (0) fprintf (stderr, "syllable %d..%d %s\n", last, p+1, #syllable_type); \
-    for (unsigned int i = last; i < p+1; i++) \
+    if (0) fprintf (stderr, "syllable %d..%d %s\n", ts, te, #syllable_type); \
+    for (unsigned int i = ts; i < te; i++) \
       info[i].syllable() = (syllable_serial << 4) | syllable_type; \
-    last = p+1; \
     syllable_serial++; \
     if (unlikely (syllable_serial == 16)) syllable_serial = 1; \
   } HB_STMT_END
@@ -102,7 +103,7 @@ main := |*
 static void
 find_syllables (hb_buffer_t *buffer)
 {
-  unsigned int p, pe, eof, ts HB_UNUSED, te, act;
+  unsigned int p, pe, eof, ts, te, act;
   int cs;
   hb_glyph_info_t *info = buffer->info;
   %%{
@@ -113,7 +114,6 @@ find_syllables (hb_buffer_t *buffer)
   p = 0;
   pe = eof = buffer->len;
 
-  unsigned int last = 0;
   unsigned int syllable_serial = 1;
   %%{
     write exec;

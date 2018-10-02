@@ -911,15 +911,14 @@ static const int indic_syllable_machine_en_main = 138;
 
 
 
-#line 90 "hb-ot-shape-complex-indic-machine.rl"
+#line 92 "hb-ot-shape-complex-indic-machine.rl"
 
 
 #define found_syllable(syllable_type) \
   HB_STMT_START { \
-    if (0) fprintf (stderr, "syllable %d..%d %s\n", last, p+1, #syllable_type); \
-    for (unsigned int i = last; i < p+1; i++) \
+    if (0) fprintf (stderr, "syllable %d..%d %s\n", ts, te, #syllable_type); \
+    for (unsigned int i = ts; i < te; i++) \
       info[i].syllable() = (syllable_serial << 4) | syllable_type; \
-    last = p+1; \
     syllable_serial++; \
     if (unlikely (syllable_serial == 16)) syllable_serial = 1; \
   } HB_STMT_END
@@ -927,11 +926,11 @@ static const int indic_syllable_machine_en_main = 138;
 static void
 find_syllables (hb_buffer_t *buffer)
 {
-  unsigned int p, pe, eof, ts HB_UNUSED, te, act;
+  unsigned int p, pe, eof, ts, te, act;
   int cs;
   hb_glyph_info_t *info = buffer->info;
   
-#line 935 "hb-ot-shape-complex-indic-machine.hh"
+#line 934 "hb-ot-shape-complex-indic-machine.hh"
 	{
 	cs = indic_syllable_machine_start;
 	ts = 0;
@@ -939,16 +938,15 @@ find_syllables (hb_buffer_t *buffer)
 	act = 0;
 	}
 
-#line 111 "hb-ot-shape-complex-indic-machine.rl"
+#line 112 "hb-ot-shape-complex-indic-machine.rl"
 
 
   p = 0;
   pe = eof = buffer->len;
 
-  unsigned int last = 0;
   unsigned int syllable_serial = 1;
   
-#line 952 "hb-ot-shape-complex-indic-machine.hh"
+#line 950 "hb-ot-shape-complex-indic-machine.hh"
 	{
 	int _slen;
 	int _trans;
@@ -962,7 +960,7 @@ _resume:
 #line 1 "NONE"
 	{ts = p;}
 	break;
-#line 966 "hb-ot-shape-complex-indic-machine.hh"
+#line 964 "hb-ot-shape-complex-indic-machine.hh"
 	}
 
 	_keys = _indic_syllable_machine_trans_keys + (cs<<1);
@@ -985,71 +983,71 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 14:
-#line 81 "hb-ot-shape-complex-indic-machine.rl"
+#line 83 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (consonant_syllable); }}
 	break;
 	case 16:
-#line 82 "hb-ot-shape-complex-indic-machine.rl"
+#line 84 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (vowel_syllable); }}
 	break;
 	case 21:
-#line 83 "hb-ot-shape-complex-indic-machine.rl"
+#line 85 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (standalone_cluster); }}
 	break;
 	case 24:
-#line 84 "hb-ot-shape-complex-indic-machine.rl"
+#line 86 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (symbol_cluster); }}
 	break;
 	case 18:
-#line 85 "hb-ot-shape-complex-indic-machine.rl"
+#line 87 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (broken_cluster); }}
 	break;
 	case 11:
-#line 86 "hb-ot-shape-complex-indic-machine.rl"
+#line 88 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p+1;{ found_syllable (non_indic_cluster); }}
 	break;
 	case 13:
-#line 81 "hb-ot-shape-complex-indic-machine.rl"
+#line 83 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (consonant_syllable); }}
 	break;
 	case 15:
-#line 82 "hb-ot-shape-complex-indic-machine.rl"
+#line 84 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (vowel_syllable); }}
 	break;
 	case 20:
-#line 83 "hb-ot-shape-complex-indic-machine.rl"
+#line 85 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (standalone_cluster); }}
 	break;
 	case 23:
-#line 84 "hb-ot-shape-complex-indic-machine.rl"
+#line 86 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (symbol_cluster); }}
 	break;
 	case 17:
-#line 85 "hb-ot-shape-complex-indic-machine.rl"
+#line 87 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (broken_cluster); }}
 	break;
 	case 19:
-#line 86 "hb-ot-shape-complex-indic-machine.rl"
+#line 88 "hb-ot-shape-complex-indic-machine.rl"
 	{te = p;p--;{ found_syllable (non_indic_cluster); }}
 	break;
 	case 1:
-#line 81 "hb-ot-shape-complex-indic-machine.rl"
+#line 83 "hb-ot-shape-complex-indic-machine.rl"
 	{{p = ((te))-1;}{ found_syllable (consonant_syllable); }}
 	break;
 	case 3:
-#line 82 "hb-ot-shape-complex-indic-machine.rl"
+#line 84 "hb-ot-shape-complex-indic-machine.rl"
 	{{p = ((te))-1;}{ found_syllable (vowel_syllable); }}
 	break;
 	case 7:
-#line 83 "hb-ot-shape-complex-indic-machine.rl"
+#line 85 "hb-ot-shape-complex-indic-machine.rl"
 	{{p = ((te))-1;}{ found_syllable (standalone_cluster); }}
 	break;
 	case 8:
-#line 84 "hb-ot-shape-complex-indic-machine.rl"
+#line 86 "hb-ot-shape-complex-indic-machine.rl"
 	{{p = ((te))-1;}{ found_syllable (symbol_cluster); }}
 	break;
 	case 4:
-#line 85 "hb-ot-shape-complex-indic-machine.rl"
+#line 87 "hb-ot-shape-complex-indic-machine.rl"
 	{{p = ((te))-1;}{ found_syllable (broken_cluster); }}
 	break;
 	case 5:
@@ -1070,22 +1068,22 @@ _eof_trans:
 	case 22:
 #line 1 "NONE"
 	{te = p+1;}
-#line 81 "hb-ot-shape-complex-indic-machine.rl"
+#line 83 "hb-ot-shape-complex-indic-machine.rl"
 	{act = 1;}
 	break;
 	case 6:
 #line 1 "NONE"
 	{te = p+1;}
-#line 85 "hb-ot-shape-complex-indic-machine.rl"
+#line 87 "hb-ot-shape-complex-indic-machine.rl"
 	{act = 5;}
 	break;
 	case 12:
 #line 1 "NONE"
 	{te = p+1;}
-#line 86 "hb-ot-shape-complex-indic-machine.rl"
+#line 88 "hb-ot-shape-complex-indic-machine.rl"
 	{act = 6;}
 	break;
-#line 1089 "hb-ot-shape-complex-indic-machine.hh"
+#line 1087 "hb-ot-shape-complex-indic-machine.hh"
 	}
 
 _again:
@@ -1094,7 +1092,7 @@ _again:
 #line 1 "NONE"
 	{ts = 0;}
 	break;
-#line 1098 "hb-ot-shape-complex-indic-machine.hh"
+#line 1096 "hb-ot-shape-complex-indic-machine.hh"
 	}
 
 	if ( ++p != pe )
