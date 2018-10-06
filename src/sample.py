@@ -3,8 +3,14 @@
 
 from __future__ import print_function, division, absolute_import
 
+# change this to True to get the default uptream size
+emulate_default = False
+
 import sys
 import array
+import gi
+gi.require_version('HarfBuzz', '0.0')
+
 from gi.repository import HarfBuzz as hb
 from gi.repository import GLib
 
@@ -19,6 +25,11 @@ def tounicode(s, encoding='utf-8'):
 		return s.decode(encoding)
 	else:
 		return s
+
+if (hb.version_atleast(1,9,0)):
+        pass
+else:
+        raise RuntimeError('HarfBuzz too old')
 
 fontdata = open (sys.argv[1], 'rb').read ()
 text = tounicode(sys.argv[2])
@@ -72,6 +83,7 @@ positions = hb.buffer_get_glyph_positions (buf)
 
 x = 0
 y = 0
+glyph_extents = list()
 min_ix = upem
 max_ix = 0
 min_iy = upem
@@ -87,6 +99,7 @@ for info,pos in zip(infos, positions):
 
 	print("gid%d=%d@%d,%d+%d" % (gid, cluster, x_advance, x_offset, y_offset))
 	(results, extents) = hb.font_get_glyph_extents(font, info.codepoint)
+	glyph_extents.append(extents)
 	min_ix = min(min_ix, x + extents.x_bearing)
 	max_ix = max(max_ix, x + extents.x_bearing + extents.width)
 	max_iy = max(max_iy, y + extents.y_bearing)
@@ -103,3 +116,44 @@ print("margin:",
       sc(font_extents.descender - font_extents.line_gap - min_iy),
       -sc(min_ix))
 del font
+
+(width,height) = (sc(max_ix - min_ix), sc(max_iy - min_iy))
+if (emulate_default):
+      (height,width) = ((font_height * 256)/upem + 32, (x * 256)/upem + 32)
+
+from freetype import *
+
+from cairo import Context, ImageSurface, FORMAT_A8
+from bitmap_to_surface import make_image_surface
+from PIL import Image
+
+face = Face(sys.argv[1])
+face.set_char_size( 256*64 )
+slot = face.glyph
+
+Z = ImageSurface(FORMAT_A8, round(width+0.5), round(height+0.5))
+ctx = Context(Z)
+
+# Second pass for actual rendering
+x, y = -sc(glyph_extents[0].x_bearing), 0
+baseline = -sc(min_iy)
+if (emulate_default):
+	x = 16
+	baseline = sc(- font_extents.descender + font_extents.line_gap) + 16
+for info,pos,extent in zip(infos, positions, glyph_extents):
+	face.load_glyph(info.codepoint)
+	bitmap = slot.bitmap
+	top = slot.bitmap_top
+	y = height-baseline-top
+	x += sc(extent.x_bearing)
+	# cairo does not like zero-width bitmap from the space character!
+	if (bitmap.width > 0):
+		glyph_surface = make_image_surface(face.glyph.bitmap)
+		ctx.set_source_surface(glyph_surface, x, y)
+		ctx.paint()
+	x += sc(pos.x_advance - extent.x_bearing)
+Z.flush()
+Z.write_to_png("hb-view.png")
+Image.open("hb-view.png").show()
+#
+del face
