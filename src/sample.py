@@ -64,16 +64,42 @@ else:
 hb.buffer_guess_segment_properties (buf)
 
 hb.shape (font, buf, [])
-del font
+font_extents = hb.font_get_extents_for_direction(font, hb.buffer_get_direction(buf))
+font_height = font_extents.ascender - font_extents.descender + font_extents.line_gap
 
 infos = hb.buffer_get_glyph_infos (buf)
 positions = hb.buffer_get_glyph_positions (buf)
+
+x = 0
+y = 0
+min_ix = upem
+max_ix = 0
+min_iy = upem
+max_iy = 0
 
 for info,pos in zip(infos, positions):
 	gid = info.codepoint
 	cluster = info.cluster
 	x_advance = pos.x_advance
+	y_advance = pos.y_advance
 	x_offset = pos.x_offset
 	y_offset = pos.y_offset
 
 	print("gid%d=%d@%d,%d+%d" % (gid, cluster, x_advance, x_offset, y_offset))
+	(results, extents) = hb.font_get_glyph_extents(font, info.codepoint)
+	min_ix = min(min_ix, x + extents.x_bearing)
+	max_ix = max(max_ix, x + extents.x_bearing + extents.width)
+	max_iy = max(max_iy, y + extents.y_bearing)
+	min_iy = min(min_iy, y + extents.y_bearing + extents.height)
+	x += x_advance
+	y += y_advance
+def sc(value):
+        return (value * 256)/upem
+print("default:", sc(x) + 32, sc(font_height) + 32)
+print("ink box:", sc(max_ix - min_ix), sc(max_iy - min_iy))
+print("margin:",
+      sc(max_iy - font_extents.ascender),
+      sc(max_ix - x),
+      sc(font_extents.descender - font_extents.line_gap - min_iy),
+      -sc(min_ix))
+del font
