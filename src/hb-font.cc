@@ -179,7 +179,7 @@ static void
 hb_font_get_glyph_h_advances_default (hb_font_t* font,
 				      void* font_data HB_UNUSED,
 				      unsigned int count,
-				      hb_codepoint_t *first_glyph,
+				      const hb_codepoint_t *first_glyph,
 				      unsigned int glyph_stride,
 				      hb_position_t *first_advance,
 				      unsigned int advance_stride,
@@ -211,7 +211,7 @@ static void
 hb_font_get_glyph_v_advances_default (hb_font_t* font,
 				      void* font_data HB_UNUSED,
 				      unsigned int count,
-				      hb_codepoint_t *first_glyph,
+				      const hb_codepoint_t *first_glyph,
 				      unsigned int glyph_stride,
 				      hb_position_t *first_advance,
 				      unsigned int advance_stride,
@@ -808,7 +808,7 @@ hb_font_get_glyph_v_advance (hb_font_t *font,
 void
 hb_font_get_glyph_h_advances (hb_font_t* font,
 			      unsigned count,
-			      hb_codepoint_t *first_glyph,
+			      const hb_codepoint_t *first_glyph,
 			      unsigned glyph_stride,
 			      hb_position_t *first_advance,
 			      unsigned advance_stride)
@@ -826,7 +826,7 @@ hb_font_get_glyph_h_advances (hb_font_t* font,
 void
 hb_font_get_glyph_v_advances (hb_font_t* font,
 			      unsigned count,
-			      hb_codepoint_t *first_glyph,
+			      const hb_codepoint_t *first_glyph,
 			      unsigned glyph_stride,
 			      hb_position_t *first_advance,
 			      unsigned advance_stride)
@@ -887,6 +887,7 @@ hb_font_get_glyph_v_origin (hb_font_t *font,
  * Return value: 
  *
  * Since: 0.9.2
+ * Deprecated: REPLACEME
  **/
 hb_position_t
 hb_font_get_glyph_h_kerning (hb_font_t *font,
@@ -906,6 +907,7 @@ hb_font_get_glyph_h_kerning (hb_font_t *font,
  * Return value: 
  *
  * Since: 0.9.2
+ * Deprecated: REPLACEME
  **/
 hb_position_t
 hb_font_get_glyph_v_kerning (hb_font_t *font,
@@ -1051,7 +1053,7 @@ HB_EXTERN void
 hb_font_get_glyph_advances_for_direction (hb_font_t* font,
 					  hb_direction_t direction,
 					  unsigned count,
-					  hb_codepoint_t *first_glyph,
+					  const hb_codepoint_t *first_glyph,
 					  unsigned glyph_stride,
 					  hb_position_t *first_advance,
 					  unsigned advance_stride)
@@ -1134,6 +1136,7 @@ hb_font_subtract_glyph_origin_for_direction (hb_font_t *font,
  * 
  *
  * Since: 0.9.2
+ * Deprecated: REPLACEME
  **/
 void
 hb_font_get_glyph_kerning_for_direction (hb_font_t *font,
