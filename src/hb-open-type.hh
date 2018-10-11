@@ -92,6 +92,9 @@ typedef IntType<uint32_t, 3> HBUINT24;	/* 24-bit unsigned integer. */
 /* 16-bit signed integer (HBINT16) that describes a quantity in FUnits. */
 typedef HBINT16 FWORD;
 
+/* 32-bit signed integer (HBINT32) that describes a quantity in FUnits. */
+typedef HBINT32 FWORD32;
+
 /* 16-bit unsigned integer (HBUINT16) that describes a quantity in FUnits. */
 typedef HBUINT16 UFWORD;
 
@@ -830,7 +833,7 @@ struct VarSizedBinSearchArrayOf
   {
     TRACE_SANITIZE (this);
     return_trace (header.sanitize (c) &&
-		  Type::static_size >= header.unitSize &&
+		  Type::static_size <= header.unitSize &&
 		  c->check_array (bytesZ.arrayZ, header.nUnits, header.unitSize));
   }
 

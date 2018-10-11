@@ -42,6 +42,17 @@
 #include "hb-aat-layout.hh"
 
 
+static bool
+_hb_apply_morx (hb_face_t *face)
+{
+  if (hb_options ().aat &&
+      hb_aat_layout_has_substitution (face))
+    return true;
+
+  return !hb_ot_layout_has_substitution (face) &&
+	 hb_aat_layout_has_substitution (face);
+}
+
 void
 hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t &plan,
 				const int          *coords,
@@ -60,7 +71,7 @@ hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t &plan,
 		      HB_TAG ('k','e','r','n') : HB_TAG ('v','k','r','n');
   plan.kern_mask = plan.map.get_mask (kern_tag);
 
-  bool kerning_requested = !!plan.kern_mask;
+  plan.requested_kerning = !!plan.kern_mask;
   bool has_gpos_kern = plan.map.get_feature_index (1, kern_tag) != HB_OT_LAYOUT_NO_FEATURE_INDEX;
   bool disable_gpos = plan.shaper->gpos_tag &&
 		      plan.shaper->gpos_tag != plan.map.chosen_script[1];
@@ -76,37 +87,36 @@ hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t &plan,
    * Decide who does substitutions. GSUB, morx, or fallback.
    */
 
-  if (!hb_ot_layout_has_substitution (face))
-  { /* No GSUB. */
-    if (hb_aat_layout_has_substitution (face))
-      plan.apply_morx = true;
-  }
+  plan.apply_morx = _hb_apply_morx (face);
 
   /*
    * Decide who does positioning. GPOS, kerx, kern, or fallback.
    */
 
-  if (!disable_gpos && hb_ot_layout_has_positioning (face))
+  if (hb_options ().aat && hb_aat_layout_has_positioning (face))
+    plan.apply_kerx = true;
+  else if (!disable_gpos && hb_ot_layout_has_positioning (face))
     plan.apply_gpos = true;
   else if (hb_aat_layout_has_positioning (face))
     plan.apply_kerx = true;
 
-  if (kerning_requested)
+  if (plan.requested_kerning && !plan.apply_kerx && !has_gpos_kern)
   {
-    if (plan.apply_kerx)
-      ;/* kerx supercedes kern. */
-    else if (!has_gpos_kern)
-    {
-      if (hb_ot_layout_has_kerning (face))
-        plan.apply_kern = true;
-      else
-	plan.fallback_kerning = true;
-    }
+    /* Apparently Apple applies kerx if GPOS kern was not applied. */
+    if (hb_aat_layout_has_positioning (face))
+      plan.apply_kerx = true;
+    if (hb_ot_layout_has_kerning (face))
+      plan.apply_kern = true;
+    else
+      plan.fallback_kerning = true;
   }
 
   plan.has_gpos_mark = !!plan.map.get_1_mask (HB_TAG ('m','a','r','k'));
-  if (!plan.apply_gpos)
+  if (!plan.apply_gpos && !plan.apply_kerx)
     plan.fallback_mark_positioning = true;
+
+  /* Currently we always apply trak. */
+  plan.apply_trak = hb_aat_layout_has_tracking (face);
 }
 
 
@@ -263,8 +273,7 @@ _hb_ot_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan,
 
   /* Ugly that we have to do this here...
    * If we are going to apply morx, choose default shaper. */
-  if (!hb_ot_layout_has_substitution (planner.face) &&
-       hb_aat_layout_has_substitution (planner.face))
+  if (_hb_apply_morx (planner.face))
     planner.shaper = &_hb_ot_complex_shaper_default;
   else
     planner.shaper = hb_ot_shape_complex_categorize (&planner);
@@ -812,32 +821,39 @@ hb_ot_position_complex (const hb_ot_shape_context_t *c)
 
   hb_ot_layout_position_start (c->font, c->buffer);
 
-  switch (c->plan->shaper->zero_width_marks)
-  {
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY:
-      zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
-      break;
+  if (!c->plan->apply_kerx)
+    switch (c->plan->shaper->zero_width_marks)
+    {
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY:
+	zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
+	break;
 
-    default:
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE:
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE:
-      break;
-  }
+      default:
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE:
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE:
+	break;
+    }
 
   if (c->plan->apply_gpos)
     c->plan->position (c->font, c->buffer);
+  else if (c->plan->apply_kerx)
+    hb_aat_layout_position (c->plan, c->font, c->buffer);
 
-  switch (c->plan->shaper->zero_width_marks)
-  {
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE:
-      zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
-      break;
+  if (c->plan->apply_trak)
+    hb_aat_layout_track (c->plan, c->font, c->buffer);
 
-    default:
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE:
-    case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY:
-      break;
-  }
+  if (!c->plan->apply_kerx)
+    switch (c->plan->shaper->zero_width_marks)
+    {
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE:
+	zero_mark_widths_by_gdef (c->buffer, adjust_offsets_when_zeroing);
+	break;
+
+      default:
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE:
+      case HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY:
+	break;
+    }
 
   /* Finishing off GPOS has to follow a certain order. */
   hb_ot_layout_position_finish_advances (c->font, c->buffer);
@@ -875,8 +891,6 @@ hb_ot_position (const hb_ot_shape_context_t *c)
     _hb_ot_shape_fallback_kern (c->plan, c->font, c->buffer);
 
   _hb_buffer_deallocate_gsubgpos_vars (c->buffer);
-
-  //hb_aat_layout_position (c->font, c->buffer);
 }
 
 static inline void

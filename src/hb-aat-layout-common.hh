@@ -164,7 +164,7 @@ struct LookupFormat4
   }
 
   protected:
-  HBUINT16	format;		/* Format identifier--format = 2 */
+  HBUINT16	format;		/* Format identifier--format = 4 */
   VarSizedBinSearchArrayOf<LookupSegmentArray<T> >
 		segments;	/* The actual segments. These must already be sorted,
 				 * according to the first word in each one (the last
@@ -187,7 +187,7 @@ struct LookupSingle
   GlyphID	glyph;		/* Last GlyphID */
   T		value;		/* The lookup value (only one) */
   public:
-  DEFINE_SIZE_STATIC (4 + T::static_size);
+  DEFINE_SIZE_STATIC (2 + T::static_size);
 };
 
 template <typename T>
@@ -258,6 +258,12 @@ struct Lookup
     case 8: return u.format8.get_value (glyph_id);
     default:return nullptr;
     }
+  }
+
+  inline const T& get_value_or_null (hb_codepoint_t glyph_id, unsigned int num_glyphs) const
+  {
+    const T *v = get_value (glyph_id, num_glyphs);
+    return v ? *v : Null(T);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) const
@@ -380,6 +386,8 @@ struct StateTable
     const HBUINT16 *states = (this+stateArrayTable).arrayZ;
     const Entry<Extra> *entries = (this+entryTable).arrayZ;
 
+    unsigned int num_classes = nClasses;
+
     unsigned int num_states = 1;
     unsigned int num_entries = 0;
 
@@ -387,13 +395,16 @@ struct StateTable
     unsigned int entry = 0;
     while (state < num_states)
     {
+      if (unlikely (hb_unsigned_mul_overflows (num_classes, states[0].static_size)))
+	return_trace (false);
+
       if (unlikely (!c->check_array (states,
 				     num_states,
-				     states[0].static_size * nClasses)))
+				     num_classes * states[0].static_size)))
 	return_trace (false);
       { /* Sweep new states. */
-	const HBUINT16 *stop = &states[num_states * nClasses];
-	for (const HBUINT16 *p = &states[state * nClasses]; p < stop; p++)
+	const HBUINT16 *stop = &states[num_states * num_classes];
+	for (const HBUINT16 *p = &states[state * num_classes]; p < stop; p++)
 	  num_entries = MAX<unsigned int> (num_entries, *p + 1);
 	state = num_states;
       }
@@ -508,6 +519,7 @@ struct StateTableDriver
 };
 
 
+struct ankr;
 
 struct hb_aat_apply_context_t :
        hb_dispatch_context_t<hb_aat_apply_context_t, bool, HB_DEBUG_APPLY>
@@ -523,6 +535,8 @@ struct hb_aat_apply_context_t :
   hb_face_t *face;
   hb_buffer_t *buffer;
   hb_sanitize_context_t sanitizer;
+  const ankr &ankr_table;
+  const char *ankr_end;
 
   /* Unused. For debug tracing only. */
   unsigned int lookup_index;
@@ -531,11 +545,15 @@ struct hb_aat_apply_context_t :
   inline hb_aat_apply_context_t (hb_ot_shape_plan_t *plan_,
 				 hb_font_t *font_,
 				 hb_buffer_t *buffer_,
-				 hb_blob_t *table) :
+				 hb_blob_t *blob = const_cast<hb_blob_t *> (&Null(hb_blob_t)),
+				 const ankr &ankr_table_ = Null(ankr),
+				 const char *ankr_end_ = nullptr) :
 		plan (plan_), font (font_), face (font->face), buffer (buffer_),
-		sanitizer (), lookup_index (0), debug_depth (0)
+		sanitizer (),
+		ankr_table (ankr_table_), ankr_end (ankr_end_),
+		lookup_index (0), debug_depth (0)
   {
-    sanitizer.init (table);
+    sanitizer.init (blob);
     sanitizer.set_num_glyphs (face->get_num_glyphs ());
     sanitizer.start_processing ();
     sanitizer.set_max_ops (HB_SANITIZE_MAX_OPS_MAX);
