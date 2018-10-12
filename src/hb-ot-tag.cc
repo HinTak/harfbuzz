@@ -36,7 +36,8 @@ hb_ot_old_tag_from_script (hb_script_t script)
 {
   /* This seems to be accurate as of end of 2012. */
 
-  switch ((hb_tag_t) script) {
+  switch ((hb_tag_t) script)
+  {
     case HB_SCRIPT_INVALID:		return HB_OT_TAG_DEFAULT_SCRIPT;
 
     /* KATAKANA and HIRAGANA both map to 'kana' */
@@ -49,8 +50,6 @@ hb_ot_old_tag_from_script (hb_script_t script)
     case HB_SCRIPT_NKO:			return HB_TAG('n','k','o',' ');
     /* Unicode-5.1 additions */
     case HB_SCRIPT_VAI:			return HB_TAG('v','a','i',' ');
-    /* Unicode-5.2 additions */
-    /* Unicode-6.0 additions */
   }
 
   /* Else, just change first char to lowercase and return */
@@ -143,7 +142,11 @@ hb_ot_all_tags_from_script (hb_script_t   script,
 
   hb_tag_t new_tag = hb_ot_new_tag_from_script (script);
   if (unlikely (new_tag != HB_OT_TAG_DEFAULT_SCRIPT))
-    tags[i++] = new_tag;
+  {
+    tags[i++] = new_tag | '3';
+    if (*count > i)
+      tags[i++] = new_tag;
+  }
 
   if (*count > i)
   {
@@ -158,8 +161,9 @@ hb_ot_all_tags_from_script (hb_script_t   script,
 hb_script_t
 hb_ot_tag_to_script (hb_tag_t tag)
 {
-  if (unlikely ((tag & 0x000000FFu) == '2'))
-    return hb_ot_new_tag_to_script (tag);
+  unsigned char digit = tag & 0x000000FFu;
+  if (unlikely (digit == '2' || digit == '3'))
+    return hb_ot_new_tag_to_script (tag & 0xFFFFFF32);
 
   return hb_ot_old_tag_to_script (tag);
 }
