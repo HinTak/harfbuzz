@@ -5,7 +5,7 @@ runnning both 32-bit and 64-bit window binaries in the same setting.
 
 For the development of HarfBuzz, the Microsoft shaping technology, Uniscribe,
 as a widely used and tested shaper is used as more-or-less OpenType reference
-implemenetation and that specially is important where OpenType specification
+implementation and that specially is important where OpenType specification
 is or wasn't that clear. For having access to Uniscribe on Linux/macOS these
 steps are recommended:
 
