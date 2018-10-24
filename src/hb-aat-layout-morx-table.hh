@@ -30,6 +30,7 @@
 #include "hb-open-type.hh"
 #include "hb-aat-layout-common.hh"
 #include "hb-ot-layout-common.hh"
+#include "hb-aat-map.hh"
 
 /*
  * morx -- Extended Glyph Metamorphosis
@@ -373,6 +374,7 @@ struct LigatureSubtable
       hb_buffer_t *buffer = driver->buffer;
       unsigned int flags = entry->flags;
 
+      DEBUG_MSG (APPLY, nullptr, "Ligature transition at %d", buffer->idx);
       if (flags & SetComponent)
       {
         if (unlikely (match_length >= ARRAY_LENGTH (match_positions)))
@@ -383,10 +385,12 @@ struct LigatureSubtable
 	  match_length--;
 
 	match_positions[match_length++] = buffer->out_len;
+	DEBUG_MSG (APPLY, nullptr, "Set component at %d", buffer->out_len);
       }
 
       if (flags & PerformAction)
       {
+	DEBUG_MSG (APPLY, nullptr, "Perform action with %d", match_length);
 	unsigned int end = buffer->out_len;
 	unsigned int action_idx = entry->data.ligActionIndex;
 	unsigned int action;
@@ -395,15 +399,18 @@ struct LigatureSubtable
 	if (unlikely (!match_length))
 	  return true;
 
-	/* TODO Only when ligation happens? */
-	buffer->merge_out_clusters (match_positions[0], buffer->out_len);
-
 	unsigned int cursor = match_length;
         do
 	{
 	  if (unlikely (!cursor))
+	  {
+	    /* Stack underflow.  Clear the stack. */
+	    DEBUG_MSG (APPLY, nullptr, "Stack underflow");
+	    match_length = 0;
 	    break;
+	  }
 
+	  DEBUG_MSG (APPLY, nullptr, "Moving to stack position %d", cursor - 1);
 	  buffer->move_to (match_positions[--cursor]);
 
 	  const HBUINT32 &actionData = ligAction[action_idx];
@@ -422,27 +429,35 @@ struct LigatureSubtable
 	  if (unlikely (!componentData.sanitize (&c->sanitizer))) return false;
 	  ligature_idx += componentData;
 
+	  DEBUG_MSG (APPLY, nullptr, "Action store %d last %d",
+		     bool (action & LigActionStore),
+		     bool (action & LigActionLast));
 	  if (action & (LigActionStore | LigActionLast))
 	  {
+
 	    const GlyphID &ligatureData = ligature[ligature_idx];
 	    if (unlikely (!ligatureData.sanitize (&c->sanitizer))) return false;
 	    hb_codepoint_t lig = ligatureData;
 
+	    DEBUG_MSG (APPLY, nullptr, "Produced ligature %d", lig);
 	    buffer->replace_glyph (lig);
 
 	    /* Now go and delete all subsequent components. */
 	    while (match_length - 1 > cursor)
 	    {
+	      DEBUG_MSG (APPLY, nullptr, "Skipping ligature component");
 	      buffer->move_to (match_positions[--match_length]);
 	      buffer->skip_glyph ();
 	      end--;
 	    }
+
+	    buffer->move_to (end + 1);
+	    buffer->merge_out_clusters (match_positions[cursor], buffer->out_len);
 	  }
 
 	  action_idx++;
 	}
 	while (!(action & LigActionLast));
-	match_length = 0;
 	buffer->move_to (end);
       }
 
@@ -826,9 +841,9 @@ struct ChainSubtable
 
 struct Chain
 {
-  inline void apply (hb_aat_apply_context_t *c) const
+  inline hb_mask_t compile_flags (const hb_aat_map_builder_t *map) const
   {
-    uint32_t flags = defaultFlags;
+    hb_mask_t flags = defaultFlags;
     {
       /* Compute applicable flags.  TODO Should move this to planning
        * stage and take user-requested features into account. */
@@ -836,14 +851,22 @@ struct Chain
       for (unsigned i = 0; i < count; i++)
       {
         const Feature &feature = featureZ[i];
-	if (false) /* XXX Check if feature enabled... */
+        uint16_t type = feature.featureType;
+	uint16_t setting = feature.featureSetting;
+	const hb_aat_map_builder_t::feature_info_t *info = map->features.bsearch (type);
+	if (info && info->setting == setting)
 	{
 	  flags &= feature.disableFlags;
 	  flags |= feature.enableFlags;
 	}
       }
     }
+    return flags;
+  }
 
+  inline void apply (hb_aat_apply_context_t *c,
+		     hb_mask_t flags) const
+  {
     const ChainSubtable *subtable = &StructAtOffset<ChainSubtable> (&featureZ, featureZ[0].static_size * featureCount);
     unsigned int count = subtableCount;
     for (unsigned int i = 0; i < count; i++)
@@ -963,6 +986,18 @@ struct morx
 
   inline bool has_data (void) const { return version != 0; }
 
+  inline void compile_flags (const hb_aat_map_builder_t *mapper,
+			     hb_aat_map_t *map) const
+  {
+    const Chain *chain = &firstChain;
+    unsigned int count = chainCount;
+    for (unsigned int i = 0; i < count; i++)
+    {
+      map->chain_flags.push (chain->compile_flags (mapper));
+      chain = &StructAfter<Chain> (*chain);
+    }
+  }
+
   inline void apply (hb_aat_apply_context_t *c) const
   {
     if (unlikely (!c->buffer->successful)) return;
@@ -971,7 +1006,7 @@ struct morx
     unsigned int count = chainCount;
     for (unsigned int i = 0; i < count; i++)
     {
-      chain->apply (c);
+      chain->apply (c, c->plan->aat_map.chain_flags[i]);
       if (unlikely (!c->buffer->successful)) return;
       chain = &StructAfter<Chain> (*chain);
     }

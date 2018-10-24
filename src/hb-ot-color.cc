@@ -22,42 +22,83 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
- * Google Author(s): Sascha Brawer
+ * Google Author(s): Sascha Brawer, Behdad Esfahbod
  */
 
 #include "hb-open-type.hh"
+#include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-color-colr-table.hh"
 #include "hb-ot-color-cpal-table.hh"
+#include "hb-ot-color-sbix-table.hh"
+#include "hb-ot-color-svg-table.hh"
+#include "hb-ot-face.hh"
 #include "hb-ot.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 #include "hb-ot-layout.hh"
-#include "hb-shaper.hh"
-
-#if 0
-HB_MARK_AS_FLAG_T (hb_ot_color_palette_flags_t)
-//HB_SHAPER_DATA_ENSURE_DECLARE(ot, face) Hmm?
 
 
 static inline const OT::COLR&
 _get_colr (hb_face_t *face)
 {
   if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::COLR);
-  return *(hb_ot_face_data (face)->colr.get ());
+  return *(hb_ot_face_data (face)->COLR.get ());
 }
 
 static inline const OT::CPAL&
 _get_cpal (hb_face_t *face)
 {
   if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::CPAL);
-  return *(hb_ot_face_data (face)->cpal.get ());
+  return *(hb_ot_face_data (face)->CPAL.get ());
 }
+
+#if 0
+static inline const OT::CBDT_accelerator_t&
+_get_cbdt (hb_face_t *face)
+{
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::CBDT_accelerator_t);
+  return *(hb_ot_face_data (face)->CBDT.get ());
+}
+
+static inline const OT::sbix&
+_get_sbix (hb_face_t *face)
+{
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::sbix);
+  return *(hb_ot_face_data (face)->sbix.get ());
+}
+
+static inline const OT::SVG&
+_get_svg (hb_face_t *face)
+{
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::SVG);
+  return *(hb_ot_face_data (face)->SVG.get ());
+}
+#endif
+
+
+/*
+ * CPAL
+ */
 
 
 /**
- * hb_ot_color_get_palette_count:
+ * hb_ot_color_has_palettes:
+ * @face: a font face.
+ *
+ * Returns: whether CPAL table is available.
+ *
+ * Since: REPLACEME
+ */
+hb_bool_t
+hb_ot_color_has_palettes (hb_face_t *face)
+{
+  return _get_cpal (face).has_data ();
+}
+
+/**
+ * hb_ot_color_palette_get_count:
  * @face: a font face.
  *
  * Returns: the number of color palettes in @face, or zero if @face has
@@ -66,116 +107,134 @@ _get_cpal (hb_face_t *face)
  * Since: REPLACEME
  */
 unsigned int
-hb_ot_color_get_palette_count (hb_face_t *face)
+hb_ot_color_palette_get_count (hb_face_t *face)
 {
-  const OT::CPAL& cpal = _get_cpal (face);
-  return cpal.get_palette_count ();
+  return _get_cpal (face).get_palette_count ();
 }
 
-
 /**
- * hb_ot_color_get_palette_name_id:
- * @face: a font face.
+ * hb_ot_color_palette_get_name_id:
+ * @face:    a font face.
  * @palette: the index of the color palette whose name is being requested.
  *
  * Retrieves the name id of a color palette. For example, a color font can
  * have themed palettes like "Spring", "Summer", "Fall", and "Winter".
  *
  * Returns: an identifier within @face's `name` table.
- * If the requested palette has no name, or if @face has no colors,
- * or if @palette is not between 0 and hb_ot_color_get_palette_count(),
- * the result is 0xFFFF. The implementation does not check whether
- * the returned palette name id is actually in @face's `name` table.
+ * If the requested palette has no name the result is #HB_NAME_ID_INVALID.
  *
  * Since: REPLACEME
  */
-unsigned int
-hb_ot_color_get_palette_name_id (hb_face_t *face, unsigned int palette)
+hb_name_id_t
+hb_ot_color_palette_get_name_id (hb_face_t *face,
+				 unsigned int palette_index)
 {
-  const OT::CPAL& cpal = _get_cpal (face);
-  return cpal.get_palette_name_id (palette);
+  return _get_cpal (face).get_palette_name_id (palette_index);
 }
 
+/**
+ * hb_ot_color_palette_color_get_name_id:
+ * @face: a font face.
+ * @color_index:
+ *
+ * Returns: Name ID associated with a palette entry, e.g. eye color
+ *
+ * Since: REPLACEME
+ */
+hb_name_id_t
+hb_ot_color_palette_color_get_name_id (hb_face_t *face,
+				       unsigned int color_index)
+{
+  return _get_cpal (face).get_color_name_id (color_index);
+}
 
 /**
- * hb_ot_color_get_palette_flags:
- * @face: a font face
- * @palette: the index of the color palette whose flags are being requested
+ * hb_ot_color_palette_get_flags:
+ * @face:    a font face
+ * @palette_index: the index of the color palette whose flags are being requested
  *
- * Returns: the flags for the requested color palette.  If @face has no colors,
- * or if @palette is not between 0 and hb_ot_color_get_palette_count(),
- * the result is #HB_OT_COLOR_PALETTE_FLAG_DEFAULT.
+ * Returns: the flags for the requested color palette.
  *
  * Since: REPLACEME
  */
 hb_ot_color_palette_flags_t
-hb_ot_color_get_palette_flags (hb_face_t *face, unsigned int palette)
+hb_ot_color_palette_get_flags (hb_face_t *face,
+			       unsigned int palette_index)
 {
-  const OT::CPAL& cpal = _get_cpal(face);
-  return cpal.get_palette_flags (palette);
+  return _get_cpal(face).get_palette_flags (palette_index);
 }
 
-
 /**
- * hb_ot_color_get_palette_colors:
+ * hb_ot_color_palette_get_colors:
  * @face:         a font face.
- * @palette:      the index of the color palette whose colors
+ * @palette_index:the index of the color palette whose colors
  *                are being requested.
  * @start_offset: the index of the first color being requested.
  * @color_count:  (inout) (optional): on input, how many colors
  *                can be maximally stored into the @colors array;
  *                on output, how many colors were actually stored.
- * @colors: (array length=color_count) (optional):
- *                an array of #hb_ot_color_t records. After calling
+ * @colors: (array length=color_count) (out) (optional):
+ *                an array of #hb_color_t records. After calling
  *                this function, @colors will be filled with
  *                the palette colors. If @colors is NULL, the function
  *                will just return the number of total colors
  *                without storing any actual colors; this can be used
  *                for allocating a buffer of suitable size before calling
- *                hb_ot_color_get_palette_colors() a second time.
+ *                hb_ot_color_palette_get_colors() a second time.
  *
  * Retrieves the colors in a color palette.
  *
- * Returns: the total number of colors in the palette. All palettes in
- * a font have the same number of colors. If @face has no colors, or if
- * @palette is not between 0 and hb_ot_color_get_palette_count(),
- * the result is zero.
+ * Returns: the total number of colors in the palette.
  *
  * Since: REPLACEME
  */
 unsigned int
-hb_ot_color_get_palette_colors (hb_face_t       *face,
-				unsigned int     palette, /* default=0 */
-				unsigned int     start_offset,
-				unsigned int    *color_count /* IN/OUT */,
-				hb_ot_color_t   *colors /* OUT */)
+hb_ot_color_palette_get_colors (hb_face_t     *face,
+				unsigned int   palette_index,
+				unsigned int   start_offset,
+				unsigned int  *colors_count  /* IN/OUT.  May be NULL. */,
+				hb_color_t    *colors        /* OUT.     May be NULL. */)
 {
-  const OT::CPAL& cpal = _get_cpal(face);
-  if (unlikely (palette >= cpal.numPalettes))
-  {
-    if (color_count) *color_count = 0;
-    return 0;
-  }
-
-  const OT::ColorRecord* crec = &cpal.offsetFirstColorRecord (&cpal);
-  crec += cpal.colorRecordIndices[palette];
-
-  unsigned int num_results = 0;
-  if (likely (color_count && colors))
-  {
-    for (unsigned int i = start_offset;
-	 i < cpal.numPaletteEntries && num_results < *color_count; ++i)
-    {
-      hb_ot_color_t* result = &colors[num_results];
-      result->red = crec[i].red;
-      result->green = crec[i].green;
-      result->blue = crec[i].blue;
-      result->alpha = crec[i].alpha;
-      ++num_results;
-    }
-  }
-
-  if (likely (color_count)) *color_count = num_results;
-  return cpal.numPaletteEntries;
+  return _get_cpal (face).get_palette_colors (palette_index, start_offset, colors_count, colors);
 }
-#endif
+
+
+/*
+ * COLR
+ */
+
+/**
+ * hb_ot_color_has_layers:
+ * @face: a font face.
+ *
+ * Returns: whether COLR table is available.
+ *
+ * Since: REPLACEME
+ */
+hb_bool_t
+hb_ot_color_has_layers (hb_face_t *face)
+{
+  return _get_colr (face).has_data ();
+}
+
+/**
+ * hb_ot_color_glyph_get_layers:
+ * @face: a font face.
+ * @glyph:
+ * @start_offset:
+ * @count:  (inout) (optional):
+ * @layers: (array length=count) (out) (optional):
+ *
+ * Returns:
+ *
+ * Since: REPLACEME
+ */
+unsigned int
+hb_ot_color_glyph_get_layers (hb_face_t           *face,
+			      hb_codepoint_t       glyph,
+			      unsigned int         start_offset,
+			      unsigned int        *count, /* IN/OUT.  May be NULL. */
+			      hb_ot_color_layer_t *layers /* OUT.     May be NULL. */)
+{
+  return _get_colr (face).get_glyph_layers (glyph, start_offset, count, layers);
+}
