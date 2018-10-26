@@ -362,6 +362,7 @@ template <>
 }
 namespace AAT {
 
+enum { DELETED_GLYPH = 0xFFFF };
 
 /*
  * Extended State Table
@@ -424,6 +425,7 @@ struct StateTable
 
   inline unsigned int get_class (hb_codepoint_t glyph_id, unsigned int num_glyphs) const
   {
+    if (unlikely (glyph_id == DELETED_GLYPH)) return CLASS_DELETED_GLYPH;
     const HBUINT16 *v = (this+classTable).get_value (glyph_id, num_glyphs);
     return v ? (unsigned) *v : (unsigned) CLASS_OUT_OF_BOUNDS;
   }
@@ -530,7 +532,7 @@ struct StateTableDriver
 
     unsigned int state = StateTable<EntryData>::STATE_START_OF_TEXT;
     bool last_was_dont_advance = false;
-    for (buffer->idx = 0;;)
+    for (buffer->idx = 0; buffer->successful;)
     {
       unsigned int klass = buffer->idx < buffer->len ?
 			   machine.get_class (buffer->info[buffer->idx].codepoint, num_glyphs) :
@@ -563,8 +565,6 @@ struct StateTableDriver
 
       if (unlikely (!c->transition (this, entry)))
         break;
-
-      if (unlikely (!buffer->successful)) return;
 
       last_was_dont_advance = (entry->flags & context_t::DontAdvance) && buffer->max_ops-- > 0;
 

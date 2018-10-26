@@ -66,6 +66,12 @@ struct hb_vector_t
     return arrayZ()[i];
   }
 
+  template <typename T> inline operator  T * (void) { return arrayZ(); }
+  template <typename T> inline operator const T * (void) const { return arrayZ(); }
+
+  inline Type * operator  + (unsigned int i) { return arrayZ() + i; }
+  inline const Type * operator  + (unsigned int i) const { return arrayZ() + i; }
+
   inline Type *push (void)
   {
     if (unlikely (!resize (len + 1)))
@@ -232,7 +238,7 @@ struct hb_vector_t
     const Type *array = this->arrayZ();
     while (min <= max)
     {
-      int mid = (min + max) / 2;
+      int mid = ((unsigned int) min + (unsigned int) max) / 2;
       int c = array[mid].cmp (&x);
       if (c < 0)
         max = mid - 1;

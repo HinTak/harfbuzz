@@ -249,7 +249,7 @@ struct CmapSubtableFormat4
       unsigned int i;
       while (min <= max)
       {
-	int mid = (min + max) / 2;
+        int mid = ((unsigned int) min + (unsigned int) max) / 2;
 	if (codepoint < startCount[mid])
 	  max = mid - 1;
 	else if (codepoint > endCount[mid])
@@ -495,7 +495,7 @@ struct CmapSubtableLongSegmented
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
-    Supplier<CmapSubtableLongGroup> supplier (group_data.arrayZ(), group_data.len);
+    Supplier<CmapSubtableLongGroup> supplier (group_data, group_data.len);
     if (unlikely (!groups.serialize (c, supplier, group_data.len))) return_trace (false);
     return true;
   }
