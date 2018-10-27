@@ -33,6 +33,20 @@
 #include "hb-unicode.hh"
 
 
+/**
+ * SECTION: hb-unicode
+ * @title: hb-unicode
+ * @short_description: Unicode character property access
+ * @include: hb.h
+ *
+ * Unicode functions are used to access Unicode character properties.
+ * Client can pass its own Unicode functions to HarfBuzz, or access
+ * the built-in Unicode functions that come with HarfBuzz.
+ *
+ * With the Unicode functions, one can query variour Unicode character
+ * properties, such as General Category, Script, Combining Class, etc.
+ **/
+
 
 /*
  * hb_unicode_funcs_t
@@ -576,8 +590,8 @@ _hb_modified_combining_class[256] =
 bool
 _hb_unicode_is_emoji_Extended_Pictographic (hb_codepoint_t cp)
 {
-  return hb_bsearch_r (&cp, _hb_unicode_emoji_Extended_Pictographic_table,
-		       ARRAY_LENGTH (_hb_unicode_emoji_Extended_Pictographic_table),
-		       sizeof (hb_unicode_range_t),
-		       hb_unicode_range_t::cmp, nullptr);
+  return hb_bsearch (&cp, _hb_unicode_emoji_Extended_Pictographic_table,
+		     ARRAY_LENGTH (_hb_unicode_emoji_Extended_Pictographic_table),
+		     sizeof (hb_unicode_range_t),
+		     hb_unicode_range_t::cmp);
 }

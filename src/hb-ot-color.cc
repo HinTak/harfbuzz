@@ -40,18 +40,21 @@
 #include "hb-ot-layout.hh"
 
 
+/**
+ * SECTION:hb-ot-color
+ * @title: hb-ot-color
+ * @short_description: OpenType Color Fonts
+ * @include: hb-ot.h
+ *
+ * Functions for fetching color-font information from OpenType font faces.
+ **/
+
+
 static inline const OT::COLR&
 _get_colr (hb_face_t *face)
 {
   if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::COLR);
   return *(hb_ot_face_data (face)->COLR.get ());
-}
-
-static inline const OT::CPAL&
-_get_cpal (hb_face_t *face)
-{
-  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::CPAL);
-  return *(hb_ot_face_data (face)->CPAL.get ());
 }
 
 #if 0
@@ -61,18 +64,27 @@ _get_cbdt (hb_face_t *face)
   if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::CBDT_accelerator_t);
   return *(hb_ot_face_data (face)->CBDT.get ());
 }
+#endif
 
-static inline const OT::sbix&
+static inline const OT::CPAL&
+_get_cpal (hb_face_t *face)
+{
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::CPAL);
+  return *(hb_ot_face_data (face)->CPAL.get ());
+}
+
+#if 0
+static inline const OT::sbix_accelerator_t&
 _get_sbix (hb_face_t *face)
 {
-  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::sbix);
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::sbix_accelerator_t);
   return *(hb_ot_face_data (face)->sbix.get ());
 }
 
-static inline const OT::SVG&
+static inline const OT::SVG_accelerator_t&
 _get_svg (hb_face_t *face)
 {
-  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::SVG);
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face))) return Null(OT::SVG_accelerator_t);
   return *(hb_ot_face_data (face)->SVG.get ());
 }
 #endif
@@ -89,7 +101,7 @@ _get_svg (hb_face_t *face)
  *
  * Returns: whether CPAL table is available.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_palettes (hb_face_t *face)
@@ -104,7 +116,7 @@ hb_ot_color_has_palettes (hb_face_t *face)
  * Returns: the number of color palettes in @face, or zero if @face has
  * no colors.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 unsigned int
 hb_ot_color_palette_get_count (hb_face_t *face)
@@ -115,7 +127,7 @@ hb_ot_color_palette_get_count (hb_face_t *face)
 /**
  * hb_ot_color_palette_get_name_id:
  * @face:    a font face.
- * @palette: the index of the color palette whose name is being requested.
+ * @palette_index: the index of the color palette whose name is being requested.
  *
  * Retrieves the name id of a color palette. For example, a color font can
  * have themed palettes like "Spring", "Summer", "Fall", and "Winter".
@@ -123,7 +135,7 @@ hb_ot_color_palette_get_count (hb_face_t *face)
  * Returns: an identifier within @face's `name` table.
  * If the requested palette has no name the result is #HB_NAME_ID_INVALID.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 hb_name_id_t
 hb_ot_color_palette_get_name_id (hb_face_t *face,
@@ -134,12 +146,12 @@ hb_ot_color_palette_get_name_id (hb_face_t *face,
 
 /**
  * hb_ot_color_palette_color_get_name_id:
- * @face: a font face.
- * @color_index:
+ * @face:        a font face.
+ * @color_index: palette entry index.
  *
  * Returns: Name ID associated with a palette entry, e.g. eye color
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 hb_name_id_t
 hb_ot_color_palette_color_get_name_id (hb_face_t *face,
@@ -150,12 +162,12 @@ hb_ot_color_palette_color_get_name_id (hb_face_t *face,
 
 /**
  * hb_ot_color_palette_get_flags:
- * @face:    a font face
+ * @face:          a font face
  * @palette_index: the index of the color palette whose flags are being requested
  *
  * Returns: the flags for the requested color palette.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 hb_ot_color_palette_flags_t
 hb_ot_color_palette_get_flags (hb_face_t *face,
@@ -186,7 +198,7 @@ hb_ot_color_palette_get_flags (hb_face_t *face,
  *
  * Returns: the total number of colors in the palette.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 unsigned int
 hb_ot_color_palette_get_colors (hb_face_t     *face,
@@ -209,7 +221,7 @@ hb_ot_color_palette_get_colors (hb_face_t     *face,
  *
  * Returns: whether COLR table is available.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_layers (hb_face_t *face)
@@ -219,15 +231,16 @@ hb_ot_color_has_layers (hb_face_t *face)
 
 /**
  * hb_ot_color_glyph_get_layers:
- * @face: a font face.
- * @glyph:
- * @start_offset:
- * @count:  (inout) (optional):
- * @layers: (array length=count) (out) (optional):
+ * @face:         a font face.
+ * @glyph:        a layered color glyph id.
+ * @start_offset: starting offset of layers.
+ * @count:  (inout) (optional): gets number of layers available to be written on buffer
+ * 				and returns number of written layers.
+ * @layers: (array length=count) (out) (optional): layers buffer to buffer.
  *
- * Returns:
+ * Returns: Total number of layers a layered color glyph have.
  *
- * Since: REPLACEME
+ * Since: 2.1.0
  */
 unsigned int
 hb_ot_color_glyph_get_layers (hb_face_t           *face,
@@ -238,3 +251,121 @@ hb_ot_color_glyph_get_layers (hb_face_t           *face,
 {
   return _get_colr (face).get_glyph_layers (glyph, start_offset, count, layers);
 }
+
+
+#if 0
+/*
+ * SVG
+ */
+
+/**
+ * hb_ot_color_has_svg:
+ * @face: a font face.
+ *
+ * Returns: whether SVG table is available.
+ *
+ * Since: DONTREPLACEME
+ */
+hb_bool_t
+hb_ot_color_has_svg (hb_face_t *face)
+{
+  return _get_svg (face).has_data ();
+}
+
+/**
+ * hb_ot_color_glyph_reference_blob_svg:
+ * @face:  a font face.
+ * @glyph: a svg glyph index.
+ *
+ * Returns: respective svg blob of the glyph, if available.
+ *
+ * Since: DONTREPLACEME
+ */
+hb_blob_t *
+hb_ot_color_glyph_reference_blob_svg (hb_face_t *face, hb_codepoint_t glyph)
+{
+  return _get_svg (face).reference_blob_for_glyph (glyph);
+}
+
+
+/*
+ * PNG: CBDT or sbix
+ */
+
+/**
+ * hb_ot_color_has_png:
+ * @face: a font face.
+ *
+ * Returns: whether either of CBDT or sbix tables is available.
+ *
+ * Since: DONTREPLACEME
+ */
+hb_bool_t
+hb_ot_color_has_png (hb_face_t *face)
+{
+  return _get_cbdt (face).has_data () || _get_sbix (face).has_data ();
+}
+
+/**
+ * hb_ot_color_glyph_reference_blob_svg:
+ * @font:  a font object, not face. upem should be set on
+ * 	   that font object if one wants to get optimal png blob, otherwise
+ * 	   return the biggest one
+ * @glyph: a glyph index.
+ * @strike_x_ppem: (out):
+ * @strike_y_ppem: (out):
+ *
+ * Returns: respective png blob of the glyph, if available.
+ *
+ * Since: DONTREPLACEME
+ */
+hb_blob_t *
+hb_ot_color_glyph_reference_blob_png (hb_font_t      *font,
+				      hb_codepoint_t  glyph,
+				      unsigned int   *strike_x_ppem /* OUT */,
+				      unsigned int   *strike_y_ppem /* OUT */)
+{
+  hb_blob_t *blob = hb_blob_get_empty ();
+  /* don't run cbdt first if aat is set */
+  if (!hb_options ().aat && _get_cbdt (font->face).has_data ())
+    blob = _get_cbdt (font->face).reference_blob_for_glyph (glyph, font->x_ppem, font->y_ppem,
+							    strike_x_ppem, strike_y_ppem);
+
+  if (_get_sbix (font->face).has_data () && !hb_blob_get_length (blob))
+    blob = _get_sbix (font->face).reference_blob_for_glyph (glyph, font->ptem,
+							    MAX (font->x_ppem, font->y_ppem),
+							    HB_TAG('p','n','g',' '),
+							    strike_x_ppem, strike_y_ppem);
+
+  if (hb_options ().aat && _get_cbdt (font->face).has_data () && !hb_blob_get_length (blob))
+    blob = _get_cbdt (font->face).reference_blob_for_glyph (glyph, font->x_ppem, font->y_ppem,
+							    strike_x_ppem, strike_y_ppem);
+
+  return blob;
+}
+
+/* To be moved to public header */
+
+/*
+ * SVG
+ */
+
+HB_EXTERN hb_bool_t
+hb_ot_color_has_svg (hb_face_t *face);
+
+HB_EXTERN hb_blob_t *
+hb_ot_color_glyph_reference_blob_svg (hb_face_t *face, hb_codepoint_t glyph);
+
+/*
+ * PNG: CBDT or sbix
+ */
+
+HB_EXTERN hb_bool_t
+hb_ot_color_has_png (hb_face_t *face);
+
+HB_EXTERN hb_blob_t *
+hb_ot_color_glyph_reference_blob_png (hb_font_t      *font,
+				      hb_codepoint_t  glyph,
+				      unsigned int   *strike_x_ppem,
+				      unsigned int   *strike_y_ppem);
+#endif

@@ -65,11 +65,11 @@ struct RearrangementSubtable
       Verb		= 0x000F,	/* The type of rearrangement specified. */
     };
 
-    inline driver_context_t (const RearrangementSubtable *table) :
+    inline driver_context_t (const RearrangementSubtable *table HB_UNUSED) :
 	ret (false),
 	start (0), end (0) {}
 
-    inline bool is_actionable (StateTableDriver<EntryData> *driver,
+    inline bool is_actionable (StateTableDriver<EntryData> *driver HB_UNUSED,
 			       const Entry<EntryData> *entry)
     {
       return (entry->flags & Verb) && start < end;
@@ -363,7 +363,7 @@ struct LigatureSubtable
 	ligature (table+table->ligature),
 	match_length (0) {}
 
-    inline bool is_actionable (StateTableDriver<EntryData> *driver,
+    inline bool is_actionable (StateTableDriver<EntryData> *driver HB_UNUSED,
 			       const Entry<EntryData> *entry)
     {
       return entry->flags & PerformAction;
@@ -399,6 +399,9 @@ struct LigatureSubtable
 	if (unlikely (!match_length))
 	  return true;
 
+	if (buffer->idx >= buffer->len)
+	  return false; // TODO Work on previous instead?
+
 	unsigned int cursor = match_length;
         do
 	{
@@ -421,8 +424,6 @@ struct LigatureSubtable
 	  if (uoffset & 0x20000000)
 	    uoffset |= 0xC0000000; /* Sign-extend. */
 	  int32_t offset = (int32_t) uoffset;
-	  if (buffer->idx >= buffer->len)
-	    return false; // TODO Work on previous instead?
 	  unsigned int component_idx = buffer->cur().codepoint + offset;
 
 	  const HBUINT16 &componentData = component[component_idx];
@@ -442,6 +443,7 @@ struct LigatureSubtable
 	    DEBUG_MSG (APPLY, nullptr, "Produced ligature %d", lig);
 	    buffer->replace_glyph (lig);
 
+	    unsigned int lig_end = match_positions[match_length - 1] + 1;
 	    /* Now go and delete all subsequent components. */
 	    while (match_length - 1 > cursor)
 	    {
@@ -450,7 +452,7 @@ struct LigatureSubtable
 	      buffer->replace_glyph (DELETED_GLYPH);
 	    }
 
-	    buffer->move_to (end + 1);
+	    buffer->move_to (lig_end);
 	    buffer->merge_out_clusters (match_positions[cursor], buffer->out_len);
 	  }
 
@@ -620,7 +622,7 @@ struct InsertionSubtable
 	mark (0),
 	insertionAction (table+table->insertionAction) {}
 
-    inline bool is_actionable (StateTableDriver<EntryData> *driver,
+    inline bool is_actionable (StateTableDriver<EntryData> *driver HB_UNUSED,
 			       const Entry<EntryData> *entry)
     {
       return (entry->flags & (CurrentInsertCount | MarkedInsertCount)) &&
@@ -937,7 +939,7 @@ struct Chain
 
   inline unsigned int get_size (void) const { return length; }
 
-  inline bool sanitize (hb_sanitize_context_t *c, unsigned int version) const
+  inline bool sanitize (hb_sanitize_context_t *c, unsigned int version HB_UNUSED) const
   {
     TRACE_SANITIZE (this);
     if (!length.sanitize (c) ||

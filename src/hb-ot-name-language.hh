@@ -1,5 +1,5 @@
 /*
- * Copyright © 2010,2011  Google, Inc.
+ * Copyright © 2018  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -24,31 +24,17 @@
  * Google Author(s): Behdad Esfahbod
  */
 
+#ifndef HB_OT_NAME_LANGUAGE_HH
+#define HB_OT_NAME_LANGUAGE_HH
+
 #include "hb.hh"
 
-#include "hb.h"
-#include "hb-ot.h"
 
-#include <stdio.h>
+HB_INTERNAL hb_language_t
+_hb_ot_name_language_for_ms_code (unsigned int code);
 
-int
-main (int argc, char **argv)
-{
-  if (argc != 2) {
-    fprintf (stderr, "usage: %s font-file\n", argv[0]);
-    exit (1);
-  }
+HB_INTERNAL hb_language_t
+_hb_ot_name_language_for_mac_code (unsigned int code);
 
-  /* Create the face */
-  hb_blob_t *blob = hb_blob_create_from_file (argv[1]);
-  hb_face_t *face = hb_face_create (blob, 0 /* first face */);
-  hb_blob_destroy (blob);
-  blob = nullptr;
 
-  unsigned int p[5];
-  bool ret = hb_ot_layout_get_size_params (face, p, p+1, (hb_name_id_t *) (p+2), p+3, p+4);
-
-  printf ("%g %u %u %g %g\n", p[0]/10., p[1], p[2], p[3]/10., p[4]/10.);
-
-  return !ret;
-}
+#endif /* HB_OT_NAME_LANGUAGE_HH */

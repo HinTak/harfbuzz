@@ -41,12 +41,18 @@
 // Just so we compile them; unused otherwise:
 #include "hb-ot-layout-base-table.hh"
 #include "hb-ot-layout-jstf-table.hh"
-#include "hb-ot-color-colr-table.hh"
-#include "hb-ot-color-cpal-table.hh"
-#include "hb-ot-color-sbix-table.hh"
-#include "hb-ot-color-svg-table.hh"
 #include "hb-ot-kern-table.hh"
 #include "hb-ot-name-table.hh"
+
+
+/**
+ * SECTION:hb-ot-layout
+ * @title: hb-ot-layout
+ * @short_description: OpenType Layout
+ * @include: hb-ot.h
+ *
+ * Functions for querying OpenType Layout features in the font face.
+ **/
 
 
 static const OT::kern::accelerator_t& _get_kern (hb_face_t *face)
@@ -1050,7 +1056,7 @@ hb_bool_t
 hb_ot_layout_get_size_params (hb_face_t    *face,
 			      unsigned int *design_size,       /* OUT.  May be NULL */
 			      unsigned int *subfamily_id,      /* OUT.  May be NULL */
-			      unsigned int *subfamily_name_id, /* OUT.  May be NULL */
+			      hb_name_id_t *subfamily_name_id, /* OUT.  May be NULL */
 			      unsigned int *range_start,       /* OUT.  May be NULL */
 			      unsigned int *range_end          /* OUT.  May be NULL */)
 {
@@ -1069,7 +1075,7 @@ hb_ot_layout_get_size_params (hb_face_t    *face,
       {
 	if (design_size) *design_size = params.designSize;
 	if (subfamily_id) *subfamily_id = params.subfamilyID;
-	if (subfamily_name_id) *subfamily_name_id = params.subfamilyNameID;
+	if (subfamily_name_id) *subfamily_name_id = (hb_name_id_t) (unsigned) params.subfamilyNameID;
 	if (range_start) *range_start = params.rangeStart;
 	if (range_end) *range_end = params.rangeEnd;
 
@@ -1080,7 +1086,7 @@ hb_ot_layout_get_size_params (hb_face_t    *face,
 
   if (design_size) *design_size = 0;
   if (subfamily_id) *subfamily_id = 0;
-  if (subfamily_name_id) *subfamily_name_id = 0;
+  if (subfamily_name_id) *subfamily_name_id = HB_NAME_ID_INVALID;
   if (range_start) *range_start = 0;
   if (range_end) *range_end = 0;
 
@@ -1133,7 +1139,7 @@ hb_ot_layout_feature_get_name_ids (hb_face_t    *face,
       feature_params.get_stylistic_set_params (feature_tag);
     if (&ss_params != &Null (OT::FeatureParamsStylisticSet)) /* ssXX */
     {
-      if (label_id) *label_id = ss_params.uiNameID;
+      if (label_id) *label_id = (hb_name_id_t) (unsigned) ss_params.uiNameID;
       // ssXX features don't have the rest
       if (tooltip_id) *tooltip_id = HB_NAME_ID_INVALID;
       if (sample_id) *sample_id = HB_NAME_ID_INVALID;
@@ -1145,11 +1151,11 @@ hb_ot_layout_feature_get_name_ids (hb_face_t    *face,
       feature_params.get_character_variants_params (feature_tag);
     if (&cv_params != &Null (OT::FeatureParamsCharacterVariants)) /* cvXX */
     {
-      if (label_id) *label_id = cv_params.featUILableNameID;
-      if (tooltip_id) *tooltip_id = cv_params.featUITooltipTextNameID;
-      if (sample_id) *sample_id = cv_params.sampleTextNameID;
+      if (label_id) *label_id = (hb_name_id_t) (unsigned) cv_params.featUILableNameID;
+      if (tooltip_id) *tooltip_id = (hb_name_id_t) (unsigned) cv_params.featUITooltipTextNameID;
+      if (sample_id) *sample_id = (hb_name_id_t) (unsigned) cv_params.sampleTextNameID;
       if (num_named_parameters) *num_named_parameters = cv_params.numNamedParameters;
-      if (first_param_id) *first_param_id = cv_params.firstParamUILabelNameID;
+      if (first_param_id) *first_param_id = (hb_name_id_t) (unsigned) cv_params.firstParamUILabelNameID;
       return true;
     }
   }
@@ -1174,7 +1180,7 @@ hb_ot_layout_feature_get_name_ids (hb_face_t    *face,
  *                one shot copying).
  * @char_count: (inout) (allow-none): The count of characters for which this feature
  *              provides glyph variants. (May be zero.)
- * @characters: (out) (allow-none): A buffer pointer. The Unicode Scalar Value
+ * @characters: (out caller-allocates) (array length=char_count): A buffer pointer. The Unicode codepoints
  *              of the characters for which this feature provides glyph variants.
  *
  * Fetches characters listed by designer under feature parameters for "Character

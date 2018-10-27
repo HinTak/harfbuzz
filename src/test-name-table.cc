@@ -1,5 +1,5 @@
 /*
- * Copyright © 2010,2011  Google, Inc.
+ * Copyright © 2018  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -24,11 +24,10 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
-
 #include "hb.h"
 #include "hb-ot.h"
 
+#include <stdlib.h>
 #include <stdio.h>
 
 int
@@ -39,16 +38,30 @@ main (int argc, char **argv)
     exit (1);
   }
 
-  /* Create the face */
   hb_blob_t *blob = hb_blob_create_from_file (argv[1]);
   hb_face_t *face = hb_face_create (blob, 0 /* first face */);
   hb_blob_destroy (blob);
-  blob = nullptr;
+  blob = NULL;
 
-  unsigned int p[5];
-  bool ret = hb_ot_layout_get_size_params (face, p, p+1, (hb_name_id_t *) (p+2), p+3, p+4);
+  unsigned int count;
+  const hb_ot_name_entry_t *entries = hb_ot_name_list_names (face, &count);
 
-  printf ("%g %u %u %g %g\n", p[0]/10., p[1], p[2], p[3]/10., p[4]/10.);
+  for (unsigned int i = 0; i < count; i++)
+  {
+    printf ("%d	%s	",
+	    entries[i].name_id,
+	    hb_language_to_string (entries[i].language));
 
-  return !ret;
+    char buf[64];
+    unsigned int buf_size = sizeof (buf);
+    hb_ot_name_get_utf8 (face,
+			 entries[i].name_id,
+			 entries[i].language,
+			 &buf_size,
+			 buf);
+
+    printf ("%s\n", buf);
+  }
+
+  return count ? 0 : 1;
 }

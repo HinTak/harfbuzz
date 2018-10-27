@@ -36,7 +36,17 @@
 
 #include "hb-open-file.hh"
 #include "hb-ot-name-table.hh"
-#include "hb-ot-tag.h"
+#include "hb-ot-layout.h"
+
+
+/**
+ * SECTION:hb-uniscribe
+ * @title: hb-uniscribe
+ * @short_description: Windows integration
+ * @include: hb-uniscribe.h
+ *
+ * Functions for using HarfBuzz with the Windows fonts.
+ **/
 
 
 static inline uint16_t hb_uint16_swap (const uint16_t v)
