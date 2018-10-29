@@ -43,24 +43,18 @@ struct SVGDocumentIndexEntry
   inline int cmp (hb_codepoint_t g) const
   { return g < startGlyphID ? -1 : g > endGlyphID ? 1 : 0; }
 
-  static int cmp (const void *pa, const void *pb)
-  {
-    const hb_codepoint_t *a = (const hb_codepoint_t *) pa;
-    const SVGDocumentIndexEntry *b = (const SVGDocumentIndexEntry *) pb;
-    return b->cmp (*a);
-  }
-
   inline hb_blob_t *reference_blob (hb_blob_t *svg_blob, unsigned int index_offset) const
   {
-    if (svgDocLength == 0) return hb_blob_get_empty ();
-    return hb_blob_create_sub_blob (svg_blob, (unsigned int) svgDoc + index_offset,
+    return hb_blob_create_sub_blob (svg_blob,
+				    index_offset + (unsigned int) svgDoc,
 				    svgDocLength);
   }
 
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
-    return_trace (c->check_struct (this));
+    return_trace (c->check_struct (this) &&
+		  svgDoc.sanitize (c, base, svgDocLength));
   }
 
   protected:
@@ -87,7 +81,7 @@ struct SVG
     {
       svg_blob = hb_sanitize_context_t().reference_table<SVG> (face);
       svg_len = hb_blob_get_length (svg_blob);
-      svg = svg_blob->as<SVG> ();
+      table = svg_blob->as<SVG> ();
     }
 
     inline void fini (void)
@@ -97,30 +91,24 @@ struct SVG
 
     inline hb_blob_t *reference_blob_for_glyph (hb_codepoint_t glyph_id) const
     {
-      if (unlikely (svg_len == 0))
+      if (unlikely (!svg_len))
         return hb_blob_get_empty ();
-      return svg->get_glyph_entry (glyph_id).reference_blob (svg_blob, svg->svgDocEntries);
+      return table->get_glyph_entry (glyph_id).reference_blob (svg_blob, table->svgDocEntries);
     }
 
-    inline bool has_data () const
-    { return svg_len; }
+    inline bool has_data () const { return svg_len; }
 
     private:
     hb_blob_t *svg_blob;
-    const SVG *svg;
+    const SVG *table;
 
     unsigned int svg_len;
   };
 
   inline const SVGDocumentIndexEntry &get_glyph_entry (hb_codepoint_t glyph_id) const
   {
-    const SVGDocumentIndexEntry *rec;
-    rec = (SVGDocumentIndexEntry *) bsearch (&glyph_id,
-					     &(this+svgDocEntries).arrayZ,
-					     (this+svgDocEntries).len,
-					     sizeof (SVGDocumentIndexEntry),
-					     SVGDocumentIndexEntry::cmp);
-    return likely (rec) ? *rec : Null(SVGDocumentIndexEntry);
+    const SortedArrayOf<SVGDocumentIndexEntry> &docs = this+svgDocEntries;
+    return docs[docs.bsearch (glyph_id)];
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) const
@@ -132,7 +120,7 @@ struct SVG
 
   protected:
   HBUINT16	version;	/* Table version (starting at 0). */
-  LOffsetTo<ArrayOf<SVGDocumentIndexEntry> >
+  LOffsetTo<SortedArrayOf<SVGDocumentIndexEntry> >
 		svgDocEntries;	/* Offset (relative to the start of the SVG table) to the
 				 * SVG Documents Index. Must be non-zero. */
 				/* Array of SVG Document Index Entries. */

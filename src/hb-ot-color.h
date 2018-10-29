@@ -94,7 +94,9 @@ HB_EXTERN hb_bool_t
 hb_ot_color_has_layers (hb_face_t *face);
 
 /**
- * hb_ot_color_layer_t: Pairs of glyph and color index.
+ * hb_ot_color_layer_t:
+ *
+ * Pairs of glyph and color index.
  *
  * Since: REPLACEME
  **/
@@ -110,6 +112,27 @@ hb_ot_color_glyph_get_layers (hb_face_t           *face,
 			      unsigned int         start_offset,
 			      unsigned int        *count, /* IN/OUT.  May be NULL. */
 			      hb_ot_color_layer_t *layers /* OUT.     May be NULL. */);
+
+/*
+ * SVG
+ */
+
+HB_EXTERN hb_bool_t
+hb_ot_color_has_svg (hb_face_t *face);
+
+HB_EXTERN hb_blob_t *
+hb_ot_color_glyph_reference_svg (hb_face_t *face, hb_codepoint_t glyph);
+
+/*
+ * PNG: CBDT or sbix
+ */
+
+HB_EXTERN hb_bool_t
+hb_ot_color_has_png (hb_face_t *face);
+
+HB_EXTERN hb_blob_t *
+hb_ot_color_glyph_reference_png (hb_font_t *font, hb_codepoint_t glyph);
+
 
 HB_END_DECLS
 
