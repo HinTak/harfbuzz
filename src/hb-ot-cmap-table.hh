@@ -228,6 +228,10 @@ struct CmapSubtableFormat4
 
   struct accelerator_t
   {
+    inline accelerator_t (void) {}
+    inline accelerator_t (const CmapSubtableFormat4 *subtable) { init (subtable); }
+    inline ~accelerator_t (void) { fini (); }
+
     inline void init (const CmapSubtableFormat4 *subtable)
     {
       segCount = subtable->segCountX2 / 2;
@@ -327,12 +331,12 @@ struct CmapSubtableFormat4
 
   inline bool get_glyph (hb_codepoint_t codepoint, hb_codepoint_t *glyph) const
   {
-    hb_auto_t<accelerator_t> accel (this);
+    accelerator_t accel (this);
     return accel.get_glyph_func (&accel, codepoint, glyph);
   }
   inline void collect_unicodes (hb_set_t *out) const
   {
-    hb_auto_t<accelerator_t> accel (this);
+    accelerator_t accel (this);
     accel.collect_unicodes (out);
   }
 
@@ -851,18 +855,6 @@ struct cmap
 
   struct subset_plan
   {
-    subset_plan(void)
-    {
-      format4_segments.init();
-      format12_groups.init();
-    }
-
-    ~subset_plan(void)
-    {
-      format4_segments.fini();
-      format12_groups.fini();
-    }
-
     inline size_t final_size() const
     {
       return 4 // header
@@ -871,9 +863,7 @@ struct cmap
           +  CmapSubtableFormat12::get_sub_table_size (this->format12_groups);
     }
 
-    // Format 4
     hb_vector_t<CmapSubtableFormat4::segment_plan> format4_segments;
-    // Format 12
     hb_vector_t<CmapSubtableLongGroup> format12_groups;
   };
 

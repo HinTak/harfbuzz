@@ -860,8 +860,8 @@ struct CoverageFormat1
   public:
   /* Older compilers need this to be public. */
   struct Iter {
-    inline void init (const struct CoverageFormat1 &c_) { c = &c_; i = 0; };
-    inline void fini (void) {};
+    inline void init (const struct CoverageFormat1 &c_) { c = &c_; i = 0; }
+    inline void fini (void) {}
     inline bool more (void) { return i < c->glyphArray.len; }
     inline void next (void) { i++; }
     inline hb_codepoint_t get_glyph (void) { return c->glyphArray[i]; }
@@ -988,7 +988,7 @@ struct CoverageFormat2
         i = c->rangeRecord.len;
       }
     }
-    inline void fini (void) {};
+    inline void fini (void) {}
     inline bool more (void) { return i < c->rangeRecord.len; }
     inline void next (void)
     {
@@ -1108,9 +1108,9 @@ struct Coverage
 
   struct Iter
   {
-    Iter (void) : format (0), u () {};
-    inline void init (const Coverage &c_)
+    inline Iter (const Coverage &c_)
     {
+      memset (this, 0, sizeof (*this));
       format = c_.u.format;
       switch (format)
       {
@@ -1119,7 +1119,6 @@ struct Coverage
       default:				     return;
       }
     }
-    inline void fini (void) {}
     inline bool more (void)
     {
       switch (format)

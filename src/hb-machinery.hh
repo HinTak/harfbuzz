@@ -82,10 +82,8 @@ static inline Type& StructAfter(TObject &X)
 /* Check _assertion in a method environment */
 #define _DEFINE_INSTANCE_ASSERTION1(_line, _assertion) \
   inline void _instance_assertion_on_line_##_line (void) const \
-  { \
-    static_assert ((_assertion), ""); \
-    ASSERT_INSTANCE_POD (*this); /* Make sure it's POD. */ \
-  }
+  { static_assert ((_assertion), ""); } \
+  static_assert (true, "") /* So we require semicolon here. */
 # define _DEFINE_INSTANCE_ASSERTION0(_line, _assertion) _DEFINE_INSTANCE_ASSERTION1 (_line, _assertion)
 # define DEFINE_INSTANCE_ASSERTION(_assertion) _DEFINE_INSTANCE_ASSERTION0 (__LINE__, _assertion)
 
@@ -99,9 +97,9 @@ static inline Type& StructAfter(TObject &X)
 
 #define DEFINE_SIZE_STATIC(size) \
   DEFINE_INSTANCE_ASSERTION (sizeof (*this) == (size)); \
+  inline unsigned int get_size (void) const { return (size); } \
   enum { static_size = (size) }; \
-  enum { min_size = (size) }; \
-  inline unsigned int get_size (void) const { return (size); }
+  enum { min_size = (size) }
 
 #define DEFINE_SIZE_UNION(size, _member) \
   DEFINE_INSTANCE_ASSERTION (0*sizeof(this->u._member.static_size) + sizeof(this->u._member) == (size)); \
@@ -114,7 +112,7 @@ static inline Type& StructAfter(TObject &X)
 #define DEFINE_SIZE_ARRAY(size, array) \
   DEFINE_INSTANCE_ASSERTION (sizeof (*this) == (size) + VAR * sizeof (array[0])); \
   DEFINE_COMPILES_ASSERTION ((void) array[0].static_size) \
-  enum { min_size = (size) } \
+  enum { min_size = (size) }
 
 #define DEFINE_SIZE_ARRAY_SIZED(size, array) \
 	inline unsigned int get_size (void) const { return (size - array.min_size + array.get_size ()); } \
