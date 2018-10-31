@@ -130,9 +130,23 @@ hb_aat_layout_find_feature_mapping (hb_tag_t tag)
 
 
 /*
- * morx/kerx/trak
+ * mort/morx/kerx/trak
  */
 
+static inline const AAT::mort&
+_get_mort (hb_face_t *face, hb_blob_t **blob = nullptr)
+{
+  if (unlikely (!hb_ot_shaper_face_data_ensure (face)))
+  {
+    if (blob)
+      *blob = hb_blob_get_empty ();
+    return Null(AAT::mort);
+  }
+  const AAT::mort& mort = *(hb_ot_face_data (face)->mort.get ());
+  if (blob)
+    *blob = hb_ot_face_data (face)->mort.get_blob ();
+  return mort;
+}
 static inline const AAT::morx&
 _get_morx (hb_face_t *face, hb_blob_t **blob = nullptr)
 {
@@ -193,14 +207,27 @@ void
 hb_aat_layout_compile_map (const hb_aat_map_builder_t *mapper,
 			   hb_aat_map_t *map)
 {
-  _get_morx (mapper->face).compile_flags (mapper, map);
+  const AAT::morx& morx = _get_morx (mapper->face, nullptr);
+  if (morx.has_data ())
+  {
+    morx.compile_flags (mapper, map);
+    return;
+  }
+
+  const AAT::mort& mort = _get_mort (mapper->face, nullptr);
+  if (mort.has_data ())
+  {
+    mort.compile_flags (mapper, map);
+    return;
+  }
 }
 
 
 hb_bool_t
 hb_aat_layout_has_substitution (hb_face_t *face)
 {
-  return _get_morx (face).has_data ();
+  return _get_morx (face).has_data () ||
+	 _get_mort (face).has_data ();
 }
 
 void
@@ -209,10 +236,22 @@ hb_aat_layout_substitute (hb_ot_shape_plan_t *plan,
 			  hb_buffer_t *buffer)
 {
   hb_blob_t *blob;
-  const AAT::morx& morx = _get_morx (font->face, &blob);
 
-  AAT::hb_aat_apply_context_t c (plan, font, buffer, blob);
-  morx.apply (&c);
+  const AAT::morx& morx = _get_morx (font->face, &blob);
+  if (morx.has_data ())
+  {
+    AAT::hb_aat_apply_context_t c (plan, font, buffer, blob);
+    morx.apply (&c);
+    return;
+  }
+
+  const AAT::mort& mort = _get_mort (font->face, &blob);
+  if (mort.has_data ())
+  {
+    AAT::hb_aat_apply_context_t c (plan, font, buffer, blob);
+    mort.apply (&c);
+    return;
+  }
 }
 
 
