@@ -255,11 +255,10 @@ struct ContextualSubtable
       }
       else
       {
-	unsigned int offset = 2 * (entry->data.markIndex + buffer->info[mark].codepoint);
-	replacement = &StructAtOffset<GlyphID> (table, offset);
-	if ((const void *) replacement < (const void *) subs ||
-	    !replacement->sanitize (&c->sanitizer) ||
-	    !*replacement)
+	unsigned int offset = entry->data.markIndex + buffer->info[mark].codepoint;
+	const UnsizedArrayOf<GlyphID> &subs_old = (const UnsizedArrayOf<GlyphID> &) subs;
+	replacement = &subs_old[Types::wordOffsetToIndex (offset, table, subs_old.arrayZ)];
+	if (!replacement->sanitize (&c->sanitizer) || !*replacement)
 	  replacement = nullptr;
       }
       if (replacement)
@@ -281,11 +280,10 @@ struct ContextualSubtable
       }
       else
       {
-	unsigned int offset = 2 * (entry->data.currentIndex + buffer->info[idx].codepoint);
-	replacement = &StructAtOffset<GlyphID> (table, offset);
-	if ((const void *) replacement < (const void *) subs ||
-	    !replacement->sanitize (&c->sanitizer) ||
-	    !*replacement)
+	unsigned int offset = entry->data.currentIndex + buffer->info[idx].codepoint;
+	const UnsizedArrayOf<GlyphID> &subs_old = (const UnsizedArrayOf<GlyphID> &) subs;
+	replacement = &subs_old[Types::wordOffsetToIndex (offset, table, subs_old.arrayZ)];
+	if (!replacement->sanitize (&c->sanitizer) || !*replacement)
 	  replacement = nullptr;
       }
       if (replacement)
@@ -497,9 +495,8 @@ struct LigatureSubtable
 	  return false; // TODO Work on previous instead?
 
 	unsigned int cursor = match_length;
-	const HBUINT32 *actionData = Types::extended ?
-				     &ligAction[action_idx] :
-				     &StructAtOffset<HBUINT32> (table, action_idx);
+	action_idx = Types::offsetToIndex (action_idx, table, ligAction.arrayZ);
+	const HBUINT32 *actionData = &ligAction[action_idx];
         do
 	{
 	  if (unlikely (!cursor))
@@ -521,12 +518,8 @@ struct LigatureSubtable
 	    uoffset |= 0xC0000000; /* Sign-extend. */
 	  int32_t offset = (int32_t) uoffset;
 	  unsigned int component_idx = buffer->cur().codepoint + offset;
-	  if (!Types::extended)
-	    component_idx *= 2;
-
-	  const HBUINT16 &componentData = Types::extended ?
-					  component[component_idx] :
-					  StructAtOffset<HBUINT16> (table, component_idx);
+	  component_idx = Types::wordOffsetToIndex (component_idx, table, component.arrayZ);
+	  const HBUINT16 &componentData = component[component_idx];
 	  if (unlikely (!componentData.sanitize (&c->sanitizer))) return false;
 	  ligature_idx += componentData;
 
@@ -535,9 +528,8 @@ struct LigatureSubtable
 		     bool (action & LigActionLast));
 	  if (action & (LigActionStore | LigActionLast))
 	  {
-	    const GlyphID &ligatureData = Types::extended ?
-					  ligature[ligature_idx] :
-					  StructAtOffset<GlyphID> (table, ligature_idx);
+	    ligature_idx = Types::offsetToIndex (ligature_idx, table, ligature.arrayZ);
+	    const GlyphID &ligatureData = ligature[ligature_idx];
 	    if (unlikely (!ligatureData.sanitize (&c->sanitizer))) return false;
 	    hb_codepoint_t lig = ligatureData;
 
@@ -963,11 +955,19 @@ struct Chain
         const Feature &feature = featureZ[i];
         uint16_t type = feature.featureType;
 	uint16_t setting = feature.featureSetting;
+      retry:
 	const hb_aat_map_builder_t::feature_info_t *info = map->features.bsearch (type);
 	if (info && info->setting == setting)
 	{
 	  flags &= feature.disableFlags;
 	  flags |= feature.enableFlags;
+	}
+	else if (type == 3/*kLetterCaseType*/ && setting == 3/*kSmallCapsSelector*/)
+	{
+	  /* Deprecated. https://github.com/harfbuzz/harfbuzz/issues/1342 */
+	  type = 37/*kLowerCaseType*/;
+	  setting = 1/*kLowerCaseSmallCapsSelector*/;
+	  goto retry;
 	}
       }
     }
