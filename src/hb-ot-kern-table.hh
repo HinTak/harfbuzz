@@ -417,7 +417,11 @@ struct KernSubTableFormat3
     hb_array_t<const HBUINT8> rightClass = StructAfter<const UnsizedArrayOf<HBUINT8> > (leftClass).as_array (glyphCount);
     hb_array_t<const HBUINT8> kernIndex = StructAfter<const UnsizedArrayOf<HBUINT8> > (rightClass).as_array (leftClassCount * rightClassCount);
 
-    unsigned int i = leftClass[left] * rightClassCount + rightClass[right];
+    unsigned int leftC = leftClass[left];
+    unsigned int rightC = rightClass[right];
+    if (unlikely (leftC >= leftClassCount || rightC >= rightClassCount))
+      return 0;
+    unsigned int i = leftC * rightClassCount + rightC;
     return kernValue[kernIndex[i]];
   }
 
@@ -437,10 +441,9 @@ struct KernSubTableFormat3
   inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (true); /* Disabled.  See above. */
     return_trace (c->check_struct (this) &&
 		  c->check_range (kernValueZ,
-				  kernValueCount +
+				  kernValueCount * sizeof (FWORD) +
 				  glyphCount * 2 +
 				  leftClassCount * rightClassCount));
   }
