@@ -123,10 +123,8 @@ struct CaretValueFormat2
   inline hb_position_t get_caret_value (hb_font_t *font, hb_direction_t direction, hb_codepoint_t glyph_id) const
   {
     hb_position_t x, y;
-    if (font->get_glyph_contour_point_for_origin (glyph_id, caretValuePoint, direction, &x, &y))
-      return HB_DIRECTION_IS_HORIZONTAL (direction) ? x : y;
-    else
-      return 0;
+    font->get_glyph_contour_point_for_origin (glyph_id, caretValuePoint, direction, &x, &y);
+    return HB_DIRECTION_IS_HORIZONTAL (direction) ? x : y;
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) const
@@ -414,11 +412,10 @@ struct GDEF
 
     inline void fini (void)
     {
-      hb_blob_destroy (this->blob);
+      this->table.destroy ();
     }
 
-    hb_blob_t *blob;
-    hb_nonnull_ptr_t<const GDEF> table;
+    hb_blob_ptr_t<GDEF> table;
   };
 
   inline unsigned int get_size (void) const

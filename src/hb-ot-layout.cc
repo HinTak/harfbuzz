@@ -42,6 +42,8 @@
 #include "hb-ot-kern-table.hh"
 #include "hb-ot-name-table.hh"
 
+#include "hb-aat-layout-lcar-table.hh"
+
 
 /**
  * SECTION:hb-ot-layout
@@ -192,17 +194,15 @@ _hb_ot_blacklist_gdef (unsigned int gdef_len,
 void
 OT::GDEF::accelerator_t::init (hb_face_t *face)
 {
-  this->blob = hb_sanitize_context_t().reference_table<GDEF> (face);
+  this->table = hb_sanitize_context_t().reference_table<GDEF> (face);
 
-  if (unlikely (_hb_ot_blacklist_gdef (this->blob->length,
-				       face->table.GSUB->blob->length,
-				       face->table.GPOS->blob->length)))
+  if (unlikely (_hb_ot_blacklist_gdef (this->table.get_length (),
+				       face->table.GSUB->table.get_length (),
+				       face->table.GPOS->table.get_length ())))
   {
-    hb_blob_destroy (this->blob);
-    this->blob = hb_blob_get_empty ();
+    hb_blob_destroy (this->table.get_blob ());
+    this->table = hb_blob_get_empty ();
   }
-
-  table = this->blob->as<GDEF> ();
 }
 
 static void
@@ -275,12 +275,15 @@ hb_ot_layout_get_ligature_carets (hb_font_t      *font,
 				  unsigned int   *caret_count /* IN/OUT */,
 				  hb_position_t  *caret_array /* OUT */)
 {
-  return font->face->table.GDEF->table->get_lig_carets (font,
-							direction,
-							glyph,
-							start_offset,
-							caret_count,
-							caret_array);
+  unsigned int result_caret_count = 0;
+  unsigned int result = font->face->table.GDEF->table->get_lig_carets (font, direction, glyph, start_offset, &result_caret_count, caret_array);
+  if (result)
+  {
+    if (caret_count) *caret_count = result_caret_count;
+  }
+  else
+    result = font->face->table.lcar->get_lig_carets (font, direction, glyph, start_offset, caret_count, caret_array);
+  return result;
 }
 
 
@@ -1055,9 +1058,8 @@ hb_ot_layout_lookups_substitute_closure (hb_face_t      *face,
       for (unsigned int i = 0; i < gsub.get_lookup_count (); i++)
         gsub.get_lookup (i).closure (&c, i);
     }
-    iteration_count++;
-  } while (iteration_count <= HB_CLOSURE_MAX_STAGES
-           && glyphs_length != glyphs->get_population ());
+  } while (iteration_count++ <= HB_CLOSURE_MAX_STAGES &&
+	   glyphs_length != glyphs->get_population ());
 }
 
 /*

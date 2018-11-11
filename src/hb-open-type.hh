@@ -335,10 +335,20 @@ static inline Type& operator + (Base &base, OffsetTo<Type, OffsetType, has_null>
 template <typename Type>
 struct UnsizedArrayOf
 {
+  enum { item_size = Type::static_size };
+
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE (UnsizedArrayOf, Type);
 
-  inline const Type& operator [] (unsigned int i) const { return arrayZ[i]; }
-  inline Type& operator [] (unsigned int i) { return arrayZ[i]; }
+  /* Unlikely other places, use "int i" instead of "unsigned int i" for our
+   * indexing operator.  For two reasons:
+   * 1. For UnsizedArrayOf, it's not totally unimaginable to want to look
+   *    at items before the start of current array.
+   * 2. Fixes MSVC 2008 "overloads have similar conversions" issue with the
+   *    built-in operator [] that takes int, in expressions like sizeof(array[0])).
+   *    I suppose I could fix that by replacing 0 with 0u, but like this fix
+   *    more now. */
+  inline const Type& operator [] (int i) const { return arrayZ[i]; }
+  inline Type& operator [] (int i) { return arrayZ[i]; }
 
   template <typename T> inline operator T * (void) { return arrayZ; }
   template <typename T> inline operator const T * (void) const { return arrayZ; }
@@ -427,6 +437,8 @@ struct UnsizedOffsetListOf : UnsizedOffsetArrayOf<Type, OffsetType, has_null>
 template <typename Type, typename LenType=HBUINT16>
 struct ArrayOf
 {
+  enum { item_size = Type::static_size };
+
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (ArrayOf, Type, LenType);
 
   inline const Type *sub_array (unsigned int start_offset, unsigned int *pcount /* IN/OUT */) const
@@ -595,6 +607,8 @@ struct OffsetListOf : OffsetArrayOf<Type>
 template <typename Type, typename LenType=HBUINT16>
 struct HeadlessArrayOf
 {
+  enum { item_size = Type::static_size };
+
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (HeadlessArrayOf, Type, LenType);
 
   inline const Type& operator [] (unsigned int i) const
@@ -793,6 +807,8 @@ struct VarSizedBinSearchHeader
 template <typename Type>
 struct VarSizedBinSearchArrayOf
 {
+  enum { item_size = Type::static_size };
+
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE (VarSizedBinSearchArrayOf, Type);
 
   inline const Type& operator [] (unsigned int i) const
@@ -830,6 +846,17 @@ struct VarSizedBinSearchArrayOf
     unsigned int count = header.nUnits;
     for (unsigned int i = 0; i < count; i++)
       if (unlikely (!(*this)[i].sanitize (c, base)))
+        return_trace (false);
+    return_trace (true);
+  }
+  template <typename T>
+  inline bool sanitize (hb_sanitize_context_t *c, const void *base, T user_data) const
+  {
+    TRACE_SANITIZE (this);
+    if (unlikely (!sanitize_shallow (c))) return_trace (false);
+    unsigned int count = header.nUnits;
+    for (unsigned int i = 0; i < count; i++)
+      if (unlikely (!(*this)[i].sanitize (c, base, user_data)))
         return_trace (false);
     return_trace (true);
   }
