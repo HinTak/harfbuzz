@@ -40,12 +40,12 @@ typedef hb_bool_t hb_shape_func_t (hb_shape_plan_t    *shape_plan,
 #include "hb-shaper-list.hh"
 #undef HB_SHAPER_IMPLEMENT
 
-struct hb_shaper_pair_t {
+struct hb_shaper_pair_static_t {
   char name[16];
   hb_shape_func_t *func;
 };
 
-HB_INTERNAL const hb_shaper_pair_t *
+HB_INTERNAL const hb_shaper_pair_static_t *
 _hb_shapers_get (void);
 
 
@@ -119,7 +119,8 @@ HB_SHAPER_DATA_ENSURE_FUNC(shaper, object) (hb_##object##_t *object) \
     } \
   } \
   return data != nullptr && (void *) data != HB_SHAPER_DATA_INVALID; \
-}
+} \
+static_assert (true, "") /* Require semicolon. */
 
 
 /* For embedding in face / font / ... */

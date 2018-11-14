@@ -27,7 +27,6 @@
  */
 
 #define HB_SHAPER ot
-#define hb_ot_shape_plan_data_t hb_ot_shape_plan_t
 #include "hb-shaper-impl.hh"
 
 #include "hb-ot-shape.hh"
@@ -52,6 +51,11 @@
  **/
 
 
+static void
+hb_ot_shape_collect_features (hb_ot_shape_planner_t          *planner,
+			      const hb_feature_t             *user_features,
+			      unsigned int                    num_user_features);
+
 static bool
 _hb_apply_morx (hb_face_t *face)
 {
@@ -63,33 +67,33 @@ _hb_apply_morx (hb_face_t *face)
 	 hb_aat_layout_has_substitution (face);
 }
 
-hb_ot_shape_planner_t::hb_ot_shape_planner_t (const hb_shape_plan_t *master_plan) :
-						face (master_plan->face_unsafe),
-						props (master_plan->props),
-						map (face, &props),
-						aat_map (face, &props),
+hb_ot_shape_planner_t::hb_ot_shape_planner_t (hb_face_t                     *face,
+					      const hb_segment_properties_t *props) :
+						face (face),
+						props (*props),
+						map (face, props),
+						aat_map (face, props),
 						apply_morx (_hb_apply_morx (face)),
 						shaper (apply_morx ?
 						        &_hb_ot_complex_shaper_default :
 							hb_ot_shape_complex_categorize (this)) {}
 
 void
-hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t &plan,
-				const int          *coords,
-				unsigned int        num_coords)
+hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t           &plan,
+				const hb_ot_shape_plan_key_t &key)
 {
   plan.props = props;
   plan.shaper = shaper;
-  map.compile (plan.map, coords, num_coords);
+  map.compile (plan.map, key);
   if (apply_morx)
-    aat_map.compile (plan.aat_map, coords, num_coords);
+    aat_map.compile (plan.aat_map);
 
   plan.frac_mask = plan.map.get_1_mask (HB_TAG ('f','r','a','c'));
   plan.numr_mask = plan.map.get_1_mask (HB_TAG ('n','u','m','r'));
   plan.dnom_mask = plan.map.get_1_mask (HB_TAG ('d','n','o','m'));
   plan.has_frac = plan.frac_mask || (plan.numr_mask && plan.dnom_mask);
   plan.rtlm_mask = plan.map.get_1_mask (HB_TAG ('r','t','l','m'));
-  hb_tag_t kern_tag = HB_DIRECTION_IS_HORIZONTAL (plan.props.direction) ?
+  hb_tag_t kern_tag = HB_DIRECTION_IS_HORIZONTAL (props.direction) ?
 		      HB_TAG ('k','e','r','n') : HB_TAG ('v','k','r','n');
   plan.kern_mask = plan.map.get_mask (kern_tag);
   plan.trak_mask = plan.map.get_mask (HB_TAG ('t','r','a','k'));
@@ -134,12 +138,47 @@ hb_ot_shape_planner_t::compile (hb_ot_shape_plan_t &plan,
   }
 
   bool has_kern_mark = plan.apply_kern && hb_ot_layout_has_cross_kerning (face);
-  plan.zero_marks = !plan.apply_kerx && !has_kern_mark;
+  plan.zero_marks = !plan.apply_morx && !plan.apply_kerx && !has_kern_mark;
   plan.has_gpos_mark = !!plan.map.get_1_mask (HB_TAG ('m','a','r','k'));
-  plan.fallback_mark_positioning = !plan.apply_gpos && !plan.apply_kerx && !has_kern_mark;
+  plan.fallback_mark_positioning = !plan.apply_gpos && plan.zero_marks;
 
   /* Currently we always apply trak. */
   plan.apply_trak = plan.requested_tracking && hb_aat_layout_has_tracking (face);
+}
+
+bool
+hb_ot_shape_plan_t::init0 (hb_face_t                     *face,
+			   const hb_shape_plan_key_t     *key)
+{
+  map.init ();
+  aat_map.init ();
+
+  hb_ot_shape_planner_t planner (face,
+				 &key->props);
+  hb_ot_shape_collect_features (&planner,
+				key->user_features,
+				key->num_user_features);
+
+  planner.compile (*this, key->ot);
+
+  if (shaper->data_create)
+  {
+    data = shaper->data_create (this);
+    if (unlikely (!data))
+      return false;
+  }
+
+  return true;
+}
+
+void
+hb_ot_shape_plan_t::fini (void)
+{
+  if (shaper->data_destroy)
+    shaper->data_destroy (const_cast<void *> (data));
+
+  map.fini ();
+  aat_map.fini ();
 }
 
 
@@ -167,7 +206,6 @@ horizontal_features[] =
 
 static void
 hb_ot_shape_collect_features (hb_ot_shape_planner_t          *planner,
-			      const hb_segment_properties_t  *props,
 			      const hb_feature_t             *user_features,
 			      unsigned int                    num_user_features)
 {
@@ -176,7 +214,7 @@ hb_ot_shape_collect_features (hb_ot_shape_planner_t          *planner,
   map->enable_feature (HB_TAG('r','v','r','n'));
   map->add_gsub_pause (nullptr);
 
-  switch (props->direction) {
+  switch (planner->props.direction) {
     case HB_DIRECTION_LTR:
       map->enable_feature (HB_TAG ('l','t','r','a'));
       map->enable_feature (HB_TAG ('l','t','r','m'));
@@ -215,7 +253,7 @@ hb_ot_shape_collect_features (hb_ot_shape_planner_t          *planner,
   for (unsigned int i = 0; i < ARRAY_LENGTH (common_features); i++)
     map->add_feature (common_features[i]);
 
-  if (HB_DIRECTION_IS_HORIZONTAL (props->direction))
+  if (HB_DIRECTION_IS_HORIZONTAL (planner->props.direction))
     for (unsigned int i = 0; i < ARRAY_LENGTH (horizontal_features); i++)
       map->add_feature (horizontal_features[i]);
   else
@@ -255,7 +293,7 @@ hb_ot_shape_collect_features (hb_ot_shape_planner_t          *planner,
  * shaper face data
  */
 
-HB_SHAPER_DATA_ENSURE_DEFINE(ot, face)
+HB_SHAPER_DATA_ENSURE_DEFINE(ot, face);
 
 struct hb_ot_face_data_t {};
 
@@ -275,7 +313,7 @@ _hb_ot_shaper_face_data_destroy (hb_ot_face_data_t *data)
  * shaper font data
  */
 
-HB_SHAPER_DATA_ENSURE_DEFINE(ot, font)
+HB_SHAPER_DATA_ENSURE_DEFINE(ot, font);
 
 struct hb_ot_font_data_t {};
 
@@ -288,54 +326,6 @@ _hb_ot_shaper_font_data_create (hb_font_t *font HB_UNUSED)
 void
 _hb_ot_shaper_font_data_destroy (hb_ot_font_data_t *data HB_UNUSED)
 {
-}
-
-
-/*
- * shaper shape_plan data
- */
-
-hb_ot_shape_plan_data_t *
-_hb_ot_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan,
-				      const hb_feature_t *user_features,
-				      unsigned int        num_user_features,
-				      const int          *coords,
-				      unsigned int        num_coords)
-{
-  hb_ot_shape_plan_t *plan = (hb_ot_shape_plan_t *) calloc (1, sizeof (hb_ot_shape_plan_t));
-  if (unlikely (!plan))
-    return nullptr;
-
-  plan->init ();
-
-  hb_ot_shape_planner_t planner (shape_plan);
-
-  hb_ot_shape_collect_features (&planner, &shape_plan->props,
-				user_features, num_user_features);
-
-  planner.compile (*plan, coords, num_coords);
-
-  if (plan->shaper->data_create) {
-    plan->data = plan->shaper->data_create (plan);
-    if (unlikely (!plan->data))
-    {
-      free (plan);
-      return nullptr;
-    }
-  }
-
-  return plan;
-}
-
-void
-_hb_ot_shaper_shape_plan_data_destroy (hb_ot_shape_plan_data_t *plan)
-{
-  if (plan->shaper->data_destroy)
-    plan->shaper->data_destroy (const_cast<void *> (plan->data));
-
-  plan->fini ();
-
-  free (plan);
 }
 
 
@@ -978,7 +968,7 @@ _hb_ot_shape (hb_shape_plan_t    *shape_plan,
 	      const hb_feature_t *features,
 	      unsigned int        num_features)
 {
-  hb_ot_shape_context_t c = {HB_SHAPER_DATA_GET (shape_plan), font, font->face, buffer, features, num_features};
+  hb_ot_shape_context_t c = {&shape_plan->ot, font, font->face, buffer, features, num_features};
   hb_ot_shape_internal (&c);
 
   return true;
@@ -995,8 +985,7 @@ hb_ot_shape_plan_collect_lookups (hb_shape_plan_t *shape_plan,
 				  hb_tag_t         table_tag,
 				  hb_set_t        *lookup_indexes /* OUT */)
 {
-  /* XXX Does the first part always succeed? */
-  HB_SHAPER_DATA_GET (shape_plan)->collect_lookups (table_tag, lookup_indexes);
+  shape_plan->ot.collect_lookups (table_tag, lookup_indexes);
 }
 
 
