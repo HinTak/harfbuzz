@@ -38,13 +38,32 @@
 
 #define HB_NULL_POOL_SIZE 1024
 
+/* Use SFINAE to sniff whether T has min_size; in which case return T::null_size,
+ * otherwise return sizeof(T). */
+
+/* The hard way...
+ * https://stackoverflow.com/questions/7776448/sfinae-tried-with-bool-gives-compiler-error-template-argument-tvalue-invol
+ */
+template<bool> struct _hb_bool_type {};
+
+template <typename T, typename B>
+struct _hb_null_size
+{ enum { value = sizeof (T) }; };
+template <typename T>
+struct _hb_null_size<T, _hb_bool_type<(bool) (int) T::min_size> >
+{ enum { value = T::null_size }; };
+
+template <typename T>
+struct hb_null_size
+{ enum { value = _hb_null_size<T, _hb_bool_type<true> >::value }; };
+
 extern HB_INTERNAL
 hb_vector_size_impl_t const _hb_NullPool[(HB_NULL_POOL_SIZE + sizeof (hb_vector_size_impl_t) - 1) / sizeof (hb_vector_size_impl_t)];
 
 /* Generic nul-content Null objects. */
 template <typename Type>
 static inline Type const & Null (void) {
-  static_assert (sizeof (Type) <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
+  static_assert (hb_null_size<Type>::value <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
   return *reinterpret_cast<Type const *> (_hb_NullPool);
 }
 #define Null(Type) Null<typename hb_remove_const<typename hb_remove_reference<Type>::value>::value>()
@@ -52,7 +71,7 @@ static inline Type const & Null (void) {
 /* Specializations for arbitrary-content Null objects expressed in bytes. */
 #define DECLARE_NULL_NAMESPACE_BYTES(Namespace, Type) \
 	} /* Close namespace. */ \
-	extern HB_INTERNAL const unsigned char _hb_Null_##Namespace##_##Type[Namespace::Type::min_size]; \
+	extern HB_INTERNAL const unsigned char _hb_Null_##Namespace##_##Type[Namespace::Type::null_size]; \
 	template <> \
 	/*static*/ inline const Namespace::Type& Null<Namespace::Type> (void) { \
 	  return *reinterpret_cast<const Namespace::Type *> (_hb_Null_##Namespace##_##Type); \
@@ -60,7 +79,7 @@ static inline Type const & Null (void) {
 	namespace Namespace { \
 	static_assert (true, "Just so we take semicolon after.")
 #define DEFINE_NULL_NAMESPACE_BYTES(Namespace, Type) \
-	const unsigned char _hb_Null_##Namespace##_##Type[Namespace::Type::min_size]
+	const unsigned char _hb_Null_##Namespace##_##Type[Namespace::Type::null_size]
 
 /* Specializations for arbitrary-content Null objects expressed as struct initializer. */
 #define DECLARE_NULL_INSTANCE(Type) \
@@ -85,7 +104,7 @@ extern HB_INTERNAL
 /* CRAP pool: Common Region for Access Protection. */
 template <typename Type>
 static inline Type& Crap (void) {
-  static_assert (sizeof (Type) <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
+  static_assert (hb_null_size<Type>::value <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
   Type *obj = reinterpret_cast<Type *> (_hb_CrapPool);
   memcpy (obj, &Null(Type), sizeof (*obj));
   return *obj;
