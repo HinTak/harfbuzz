@@ -915,7 +915,7 @@ struct ChainSubtable
   {
     TRACE_SANITIZE (this);
     if (!length.sanitize (c) ||
-	length < min_size ||
+	length <= min_size ||
 	!c->check_range (this, length))
       return_trace (false);
 
@@ -1041,6 +1041,7 @@ struct Chain
       subtable = &StructAfter<ChainSubtable<Types> > (*subtable);
       c->set_lookup_index (c->lookup_index + 1);
     }
+    c->sanitizer.reset_object ();
   }
 
   inline unsigned int get_size (void) const { return length; }
@@ -1060,10 +1061,12 @@ struct Chain
     unsigned int count = subtableCount;
     for (unsigned int i = 0; i < count; i++)
     {
+      c->set_object (*subtable);
       if (!subtable->sanitize (c))
 	return_trace (false);
       subtable = &StructAfter<ChainSubtable<Types> > (*subtable);
     }
+    c->reset_object ();
 
     return_trace (true);
   }

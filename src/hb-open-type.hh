@@ -231,17 +231,31 @@ struct FixedVersion
  * Use: (base+offset)
  */
 
+template <typename Type, bool has_null>
+struct _hb_has_null
+{
+  static inline const Type *get_null (void) { return nullptr; }
+  static inline Type *get_crap (void) { return nullptr; }
+};
+template <typename Type>
+struct _hb_has_null<Type, true>
+{
+  static inline const Type *get_null (void) { return &Null(Type); }
+  static inline Type *get_crap (void) { return &Crap(Type); }
+};
+
 template <typename Type, typename OffsetType=HBUINT16, bool has_null=true>
 struct OffsetTo : Offset<OffsetType, has_null>
 {
   inline const Type& operator () (const void *base) const
   {
-    if (unlikely (this->is_null ())) return Null (Type);
+    if (unlikely (this->is_null ())) return *_hb_has_null<Type, has_null>::get_null ();
     return StructAtOffset<const Type> (base, *this);
   }
   inline Type& operator () (void *base) const
   {
     if (unlikely (this->is_null ())) return Crap (Type);
+    if (unlikely (this->is_null ())) return *_hb_has_null<Type, has_null>::get_crap ();
     return StructAtOffset<Type> (base, *this);
   }
 
@@ -317,6 +331,7 @@ struct OffsetTo : Offset<OffsetType, has_null>
   DEFINE_SIZE_STATIC (sizeof (OffsetType));
 };
 template <typename Type, bool has_null=true> struct LOffsetTo : OffsetTo<Type, HBUINT32, has_null> {};
+
 template <typename Base, typename OffsetType, bool has_null, typename Type>
 static inline const Type& operator + (const Base &base, const OffsetTo<Type, OffsetType, has_null> &offset) { return offset (base); }
 template <typename Base, typename OffsetType, bool has_null, typename Type>
@@ -401,7 +416,7 @@ struct UnsizedArrayOf
   public:
   Type		arrayZ[VAR];
   public:
-  DEFINE_SIZE_ARRAY (0, arrayZ);
+  DEFINE_SIZE_UNBOUNDED (0);
 };
 
 /* Unsized array of offset's */

@@ -812,6 +812,7 @@ struct KerxSubTable
   {
     TRACE_SANITIZE (this);
     if (!u.header.sanitize (c) ||
+	u.header.length <= u.header.static_size ||
 	!c->check_range (this, u.header.length))
       return_trace (false);
 
@@ -841,6 +842,21 @@ struct KerxTable
 {
   /* https://en.wikipedia.org/wiki/Curiously_recurring_template_pattern */
   inline const T* thiz (void) const { return static_cast<const T *> (this); }
+
+  inline bool has_state_machine (void) const
+  {
+    typedef typename T::SubTable SubTable;
+
+    const SubTable *st = &thiz()->firstSubTable;
+    unsigned int count = thiz()->tableCount;
+    for (unsigned int i = 0; i < count; i++)
+    {
+      if (st->get_type () == 1)
+        return true;
+      st = &StructAfter<SubTable> (*st);
+    }
+    return false;
+  }
 
   inline bool has_cross_stream (void) const
   {
@@ -920,7 +936,11 @@ struct KerxTable
       if (reverse)
 	c->buffer->reverse ();
 
-      c->sanitizer.set_object (*st);
+      /* See comment in sanitize() for conditional here. */
+      if (i < count - 1)
+	c->sanitizer.set_object (*st);
+      else
+	c->sanitizer.reset_object ();
 
       ret |= st->dispatch (c);
 
@@ -933,6 +953,7 @@ struct KerxTable
       st = &StructAfter<SubTable> (*st);
       c->set_lookup_index (c->lookup_index + 1);
     }
+    c->sanitizer.reset_object ();
 
     return ret;
   }
@@ -951,10 +972,23 @@ struct KerxTable
     unsigned int count = thiz()->tableCount;
     for (unsigned int i = 0; i < count; i++)
     {
+      /* OpenType kern table has 2-byte subtable lengths.  That's limiting.
+       * MS implementation also only supports one subtable, of format 0,
+       * anyway.  Certain versions of some fonts, like Calibry, contain
+       * kern subtable that exceeds 64kb.  Looks like, the subtable length
+       * is simply ignored.  Which makes sense.  It's only needed if you
+       * have multiple subtables.  To handle such fonts, we just ignore
+       * the length for the last subtable. */
+      if (i < count - 1)
+	c->set_object (*st);
+      else
+	c->reset_object ();
+
       if (unlikely (!st->sanitize (c)))
 	return_trace (false);
       st = &StructAfter<SubTable> (*st);
     }
+    c->reset_object ();
 
     return_trace (true);
   }
