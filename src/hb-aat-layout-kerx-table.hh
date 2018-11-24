@@ -49,7 +49,7 @@ kerxTupleKern (int value,
 	       const void *base,
 	       hb_aat_apply_context_t *c)
 {
-  if (likely (!tupleCount)) return value;
+  if (likely (!tupleCount || !c)) return value;
 
   unsigned int offset = value;
   const FWORD *pv = &StructAtOffset<FWORD> (base, offset);
@@ -93,21 +93,11 @@ struct KernPair
 template <typename KernSubTableHeader>
 struct KerxSubTableFormat0
 {
-  inline int get_kerning (hb_codepoint_t left, hb_codepoint_t right) const
-  {
-    hb_glyph_pair_t pair = {left, right};
-    int i = pairs.bsearch (pair);
-    if (i == -1) return 0;
-    return pairs[i].get_kerning ();
-  }
-
   inline int get_kerning (hb_codepoint_t left, hb_codepoint_t right,
-			  hb_aat_apply_context_t *c) const
+			  hb_aat_apply_context_t *c = nullptr) const
   {
     hb_glyph_pair_t pair = {left, right};
-    int i = pairs.bsearch (pair);
-    if (i == -1) return 0;
-    int v = pairs[i].get_kerning ();
+    int v = pairs.bsearch (pair).get_kerning ();
     return kerxTupleKern (v, header.tuple_count (), this, c);
   }
 
@@ -972,6 +962,9 @@ struct KerxTable
     unsigned int count = thiz()->tableCount;
     for (unsigned int i = 0; i < count; i++)
     {
+      c->reset_object ();
+      if (unlikely (!st->u.header.sanitize (c)))
+	return_trace (false);
       /* OpenType kern table has 2-byte subtable lengths.  That's limiting.
        * MS implementation also only supports one subtable, of format 0,
        * anyway.  Certain versions of some fonts, like Calibry, contain
@@ -981,8 +974,6 @@ struct KerxTable
        * the length for the last subtable. */
       if (i < count - 1)
 	c->set_object (*st);
-      else
-	c->reset_object ();
 
       if (unlikely (!st->sanitize (c)))
 	return_trace (false);

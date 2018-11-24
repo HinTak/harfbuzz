@@ -1061,6 +1061,9 @@ struct Chain
     unsigned int count = subtableCount;
     for (unsigned int i = 0; i < count; i++)
     {
+      c->reset_object ();
+      if (unlikely (!c->check_struct (subtable)))
+	return_trace (false);
       c->set_object (*subtable);
       if (!subtable->sanitize (c))
 	return_trace (false);

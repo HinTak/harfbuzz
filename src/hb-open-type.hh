@@ -345,6 +345,8 @@ static inline Type& operator + (Base &base, OffsetTo<Type, OffsetType, has_null>
 template <typename Type>
 struct UnsizedArrayOf
 {
+  static_assert ((bool) (unsigned) hb_static_size (Type), "");
+
   enum { item_size = Type::static_size };
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE (UnsizedArrayOf, Type);
@@ -368,8 +370,20 @@ struct UnsizedArrayOf
   inline unsigned int get_size (unsigned int len) const
   { return len * Type::static_size; }
 
-  inline hb_array_t<Type> as_array (unsigned int len) { return hb_array_t<Type> (arrayZ, len); }
-  inline hb_array_t<const Type> as_array (unsigned int len) const { return hb_array_t<const Type> (arrayZ, len); }
+  inline hb_array_t<Type> as_array (unsigned int len)
+  { return hb_array (arrayZ, len); }
+  inline hb_array_t<const Type> as_array (unsigned int len) const
+  { return hb_array (arrayZ, len); }
+
+  template <typename T>
+  inline Type &lsearch (unsigned int len, const T &x)
+  { return *as_array (len).lsearch (x, &Crap (T)); }
+  template <typename T>
+  inline const Type &lsearch (unsigned int len, const T &x) const
+  { return *as_array (len).lsearch (x, &Null (T)); }
+
+  inline void qsort (unsigned int len, unsigned int start = 0, unsigned int end = (unsigned int) -1)
+  { as_array (len).qsort (start, end); }
 
   inline bool sanitize (hb_sanitize_context_t *c, unsigned int count) const
   {
@@ -445,10 +459,35 @@ struct UnsizedOffsetListOf : UnsizedOffsetArrayOf<Type, OffsetType, has_null>
   }
 };
 
+/* An array with sorted elements.  Supports binary searching. */
+template <typename Type>
+struct SortedUnsizedArrayOf : UnsizedArrayOf<Type>
+{
+  inline hb_sorted_array_t<Type> as_array (unsigned int len)
+  { return hb_sorted_array (this->arrayZ, len); }
+  inline hb_sorted_array_t<const Type> as_array (unsigned int len) const
+  { return hb_sorted_array (this->arrayZ, len); }
+
+  template <typename T>
+  inline Type &bsearch (unsigned int len, const T &x, Type &not_found = Crap (Type))
+  { return *as_array (len).bsearch (x, &not_found); }
+  template <typename T>
+  inline const Type &bsearch (unsigned int len, const T &x, const Type &not_found = Null (Type)) const
+  { return *as_array (len).bsearch (x, &not_found); }
+  template <typename T>
+  inline bool bfind (unsigned int len, const T &x, unsigned int *i = nullptr,
+		     hb_bfind_not_found_t not_found = HB_BFIND_NOT_FOUND_DONT_STORE,
+		     unsigned int to_store = (unsigned int) -1) const
+  { return as_array (len).bfind (x, i, not_found, to_store); }
+};
+
+
 /* An array with a number of elements. */
 template <typename Type, typename LenType=HBUINT16>
 struct ArrayOf
 {
+  static_assert ((bool) (unsigned) hb_static_size (Type), "");
+
   enum { item_size = Type::static_size };
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (ArrayOf, Type, LenType);
@@ -478,6 +517,11 @@ struct ArrayOf
 
   inline unsigned int get_size (void) const
   { return len.static_size + len * Type::static_size; }
+
+  inline hb_array_t<Type> as_array (void)
+  { return hb_array (arrayZ, len); }
+  inline hb_array_t<const Type> as_array (void) const
+  { return hb_array (arrayZ, len); }
 
   inline bool serialize (hb_serialize_context_t *c,
 			 unsigned int items_len)
@@ -538,20 +582,15 @@ struct ArrayOf
     return_trace (true);
   }
 
-  template <typename SearchType>
-  inline int lsearch (const SearchType &x) const
-  {
-    unsigned int count = len;
-    for (unsigned int i = 0; i < count; i++)
-      if (!this->arrayZ[i].cmp (x))
-	return i;
-    return -1;
-  }
+  template <typename T>
+  inline Type &lsearch (const T &x)
+  { return *as_array ().lsearch (x, &Crap (T)); }
+  template <typename T>
+  inline const Type &lsearch (const T &x) const
+  { return *as_array ().lsearch (x, &Null (T)); }
 
-  inline void qsort (void)
-  {
-    ::qsort (arrayZ, len, sizeof (Type), Type::cmp);
-  }
+  inline void qsort (unsigned int start = 0, unsigned int end = (unsigned int) -1)
+  { as_array ().qsort (start, end); }
 
   inline bool sanitize_shallow (hb_sanitize_context_t *c) const
   {
@@ -733,22 +772,22 @@ struct ArrayOfM1
 template <typename Type, typename LenType=HBUINT16>
 struct SortedArrayOf : ArrayOf<Type, LenType>
 {
-  template <typename SearchType>
-  inline int bsearch (const SearchType &x) const
-  {
-    /* Hand-coded bsearch here since this is in the hot inner loop. */
-    const Type *arr = this->arrayZ;
-    int min = 0, max = (int) this->len - 1;
-    while (min <= max)
-    {
-      int mid = ((unsigned int) min + (unsigned int) max) / 2;
-      int c = arr[mid].cmp (x);
-      if (c < 0) max = mid - 1;
-      else if (c > 0) min = mid + 1;
-      else return mid;
-    }
-    return -1;
-  }
+  inline hb_sorted_array_t<Type> as_array (void)
+  { return hb_sorted_array (this->arrayZ, this->len); }
+  inline hb_sorted_array_t<const Type> as_array (void) const
+  { return hb_sorted_array (this->arrayZ, this->len); }
+
+  template <typename T>
+  inline Type &bsearch (const T &x, Type &not_found = Crap (Type))
+  { return *as_array ().bsearch (x, &not_found); }
+  template <typename T>
+  inline const Type &bsearch (const T &x, const Type &not_found = Null (Type)) const
+  { return *as_array ().bsearch (x, &not_found); }
+  template <typename T>
+  inline bool bfind (const T &x, unsigned int *i = nullptr,
+		     hb_bfind_not_found_t not_found = HB_BFIND_NOT_FOUND_DONT_STORE,
+		     unsigned int to_store = (unsigned int) -1) const
+  { return as_array ().bfind (x, i, not_found, to_store); }
 };
 
 /*
