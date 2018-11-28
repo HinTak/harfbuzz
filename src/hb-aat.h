@@ -1,5 +1,5 @@
 /*
- * Copyright © 2011  Google, Inc.
+ * Copyright © 2018  Ebrahim Byagowi
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -20,43 +20,19 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
- *
- * Google Author(s): Behdad Esfahbod
  */
 
-/* This file tests that all headers can be included from .c files */
+#ifndef HB_AAT_H
+#define HB_AAT_H
+#define HB_AAT_H_IN
 
+#include "hb.h"
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#include "hb-aat-layout.h"
 
-#include <hb.h>
-#include <hb-ot.h>
-#include <hb-aat.h>
+HB_BEGIN_DECLS
 
-#ifdef HAVE_GLIB
-#include <hb-glib.h>
-#endif
+HB_END_DECLS
 
-#ifdef HAVE_ICU
-#include <hb-icu.h>
-#endif
-
-#ifdef HAVE_FREETYPE
-#include <hb-ft.h>
-#endif
-
-#ifdef HAVE_UNISCRIBE
-#include <hb-uniscribe.h>
-#endif
-
-#ifdef HAVE_CORETEXT
-#include <hb-coretext.h>
-#endif
-
-int
-main (void)
-{
-  return !*hb_shape_list_shapers ();
-}
+#undef HB_AAT_H_IN
+#endif /* HB_AAT_H */

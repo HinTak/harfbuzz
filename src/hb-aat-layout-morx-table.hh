@@ -911,6 +911,13 @@ struct ChainSubtable
     }
   }
 
+  inline bool apply (hb_aat_apply_context_t *c) const
+  {
+    TRACE_APPLY (this);
+    hb_sanitize_with_object_t with (&c->sanitizer, this);
+    return_trace (dispatch (c));
+  }
+
   inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
@@ -919,6 +926,7 @@ struct ChainSubtable
 	!c->check_range (this, length))
       return_trace (false);
 
+    hb_sanitize_with_object_t with (c, this);
     return_trace (dispatch (c));
   }
 
@@ -949,21 +957,21 @@ struct Chain
       unsigned int count = featureCount;
       for (unsigned i = 0; i < count; i++)
       {
-        const Feature &feature = featureZ[i];
-        uint16_t type = feature.featureType;
-	uint16_t setting = feature.featureSetting;
+	const Feature &feature = featureZ[i];
+	hb_aat_layout_feature_type_t type = (hb_aat_layout_feature_type_t) (unsigned int) feature.featureType;
+	hb_aat_layout_feature_selector_t setting = (hb_aat_layout_feature_selector_t) (unsigned int) feature.featureSetting;
       retry:
-	const hb_aat_map_builder_t::feature_info_t *info = map->features.bsearch (type);
+	const hb_aat_map_builder_t::feature_info_t *info = map->features.bsearch ((uint16_t) type);
 	if (info && info->setting == setting)
 	{
 	  flags &= feature.disableFlags;
 	  flags |= feature.enableFlags;
 	}
-	else if (type == 3/*kLetterCaseType*/ && setting == 3/*kSmallCapsSelector*/)
+	else if (type == HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE && setting == HB_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS)
 	{
 	  /* Deprecated. https://github.com/harfbuzz/harfbuzz/issues/1342 */
-	  type = 37/*kLowerCaseType*/;
-	  setting = 1/*kLowerCaseSmallCapsSelector*/;
+	  type = HB_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE;
+	  setting = HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS;
 	  goto retry;
 	}
       }
@@ -1026,9 +1034,7 @@ struct Chain
       if (reverse)
         c->buffer->reverse ();
 
-      c->sanitizer.set_object (*subtable);
-
-      subtable->dispatch (c);
+      subtable->apply (c);
 
       if (reverse)
         c->buffer->reverse ();
@@ -1041,7 +1047,6 @@ struct Chain
       subtable = &StructAfter<ChainSubtable<Types> > (*subtable);
       c->set_lookup_index (c->lookup_index + 1);
     }
-    c->sanitizer.reset_object ();
   }
 
   inline unsigned int get_size (void) const { return length; }
@@ -1061,15 +1066,10 @@ struct Chain
     unsigned int count = subtableCount;
     for (unsigned int i = 0; i < count; i++)
     {
-      c->reset_object ();
-      if (unlikely (!c->check_struct (subtable)))
-	return_trace (false);
-      c->set_object (*subtable);
       if (!subtable->sanitize (c))
 	return_trace (false);
       subtable = &StructAfter<ChainSubtable<Types> > (*subtable);
     }
-    c->reset_object ();
 
     return_trace (true);
   }

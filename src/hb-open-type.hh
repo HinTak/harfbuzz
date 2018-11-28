@@ -376,11 +376,11 @@ struct UnsizedArrayOf
   { return hb_array (arrayZ, len); }
 
   template <typename T>
-  inline Type &lsearch (unsigned int len, const T &x)
-  { return *as_array (len).lsearch (x, &Crap (T)); }
+  inline Type &lsearch (unsigned int len, const T &x, Type &not_found = Crap (Type))
+  { return *as_array (len).lsearch (x, &not_found); }
   template <typename T>
-  inline const Type &lsearch (unsigned int len, const T &x) const
-  { return *as_array (len).lsearch (x, &Null (T)); }
+  inline const Type &lsearch (unsigned int len, const T &x, const Type &not_found = Null (Type)) const
+  { return *as_array (len).lsearch (x, &not_found); }
 
   inline void qsort (unsigned int len, unsigned int start = 0, unsigned int end = (unsigned int) -1)
   { as_array (len).qsort (start, end); }
@@ -443,8 +443,17 @@ struct UnsizedOffsetListOf : UnsizedOffsetArrayOf<Type, OffsetType, has_null>
 {
   inline const Type& operator [] (unsigned int i) const
   {
-    return this+this->arrayZ[i];
+    const OffsetTo<Type, OffsetType, has_null> *p = &this->arrayZ[i];
+    if (unlikely (p < this->arrayZ)) return Null (Type); /* Overflowed. */
+    return this+*p;
   }
+  inline Type& operator [] (unsigned int i)
+  {
+    const OffsetTo<Type, OffsetType, has_null> *p = &this->arrayZ[i];
+    if (unlikely (p < this->arrayZ)) return Crap (Type); /* Overflowed. */
+    return this+*p;
+  }
+
 
   inline bool sanitize (hb_sanitize_context_t *c, unsigned int count) const
   {
@@ -492,18 +501,6 @@ struct ArrayOf
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (ArrayOf, Type, LenType);
 
-  inline const Type *sub_array (unsigned int start_offset, unsigned int *pcount /* IN/OUT */) const
-  {
-    unsigned int count = len;
-    if (unlikely (start_offset > count))
-      count = 0;
-    else
-      count -= start_offset;
-    count = MIN (count, *pcount);
-    *pcount = count;
-    return arrayZ + start_offset;
-  }
-
   inline const Type& operator [] (unsigned int i) const
   {
     if (unlikely (i >= len)) return Null (Type);
@@ -522,6 +519,15 @@ struct ArrayOf
   { return hb_array (arrayZ, len); }
   inline hb_array_t<const Type> as_array (void) const
   { return hb_array (arrayZ, len); }
+
+  inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int count) const
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int *count /* IN/OUT */) const
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<Type> sub_array (unsigned int start_offset, unsigned int count)
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<Type> sub_array (unsigned int start_offset, unsigned int *count /* IN/OUT */)
+  { return as_array ().sub_array (start_offset, count);}
 
   inline bool serialize (hb_serialize_context_t *c,
 			 unsigned int items_len)
@@ -583,11 +589,11 @@ struct ArrayOf
   }
 
   template <typename T>
-  inline Type &lsearch (const T &x)
-  { return *as_array ().lsearch (x, &Crap (T)); }
+  inline Type &lsearch (const T &x, Type &not_found = Crap (Type))
+  { return *as_array ().lsearch (x, &not_found); }
   template <typename T>
-  inline const Type &lsearch (const T &x) const
-  { return *as_array ().lsearch (x, &Null (T)); }
+  inline const Type &lsearch (const T &x, const Type &not_found = Null (Type)) const
+  { return *as_array ().lsearch (x, &not_found); }
 
   inline void qsort (unsigned int start = 0, unsigned int end = (unsigned int) -1)
   { as_array ().qsort (start, end); }
@@ -777,6 +783,15 @@ struct SortedArrayOf : ArrayOf<Type, LenType>
   inline hb_sorted_array_t<const Type> as_array (void) const
   { return hb_sorted_array (this->arrayZ, this->len); }
 
+  inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int count) const
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int *count /* IN/OUT */) const
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<Type> sub_array (unsigned int start_offset, unsigned int count)
+  { return as_array ().sub_array (start_offset, count);}
+  inline hb_array_t<Type> sub_array (unsigned int start_offset, unsigned int *count /* IN/OUT */)
+  { return as_array ().sub_array (start_offset, count);}
+
   template <typename T>
   inline Type &bsearch (const T &x, Type &not_found = Crap (Type))
   { return *as_array ().bsearch (x, &not_found); }
@@ -859,14 +874,35 @@ struct VarSizedBinSearchArrayOf
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE (VarSizedBinSearchArrayOf, Type);
 
+  inline bool last_is_terminator (void) const
+  {
+    if (unlikely (!header.nUnits)) return false;
+
+    /* Gah.
+     *
+     * "The number of termination values that need to be included is table-specific.
+     * The value that indicates binary search termination is 0xFFFF." */
+    const HBUINT16 *words = &StructAtOffset<HBUINT16> (&bytesZ, (header.nUnits - 1) * header.unitSize);
+    unsigned int count = Type::TerminationWordCount;
+    for (unsigned int i = 0; i < count; i++)
+      if (words[i] != 0xFFFFu)
+        return false;
+    return true;
+  }
+
   inline const Type& operator [] (unsigned int i) const
   {
-    if (unlikely (i >= header.nUnits)) return Null (Type);
+    if (unlikely (i >= get_length ())) return Null (Type);
     return StructAtOffset<Type> (&bytesZ, i * header.unitSize);
   }
   inline Type& operator [] (unsigned int i)
   {
+    if (unlikely (i >= get_length ())) return Crap (Type);
     return StructAtOffset<Type> (&bytesZ, i * header.unitSize);
+  }
+  inline unsigned int get_length (void) const
+  {
+    return header.nUnits - last_is_terminator ();
   }
   inline unsigned int get_size (void) const
   { return header.static_size + header.nUnits * header.unitSize; }
@@ -891,7 +927,7 @@ struct VarSizedBinSearchArrayOf
   {
     TRACE_SANITIZE (this);
     if (unlikely (!sanitize_shallow (c))) return_trace (false);
-    unsigned int count = header.nUnits;
+    unsigned int count = get_length ();
     for (unsigned int i = 0; i < count; i++)
       if (unlikely (!(*this)[i].sanitize (c, base)))
 	return_trace (false);
@@ -902,7 +938,7 @@ struct VarSizedBinSearchArrayOf
   {
     TRACE_SANITIZE (this);
     if (unlikely (!sanitize_shallow (c))) return_trace (false);
-    unsigned int count = header.nUnits;
+    unsigned int count = get_length ();
     for (unsigned int i = 0; i < count; i++)
       if (unlikely (!(*this)[i].sanitize (c, base, user_data)))
 	return_trace (false);
@@ -913,7 +949,7 @@ struct VarSizedBinSearchArrayOf
   inline const Type *bsearch (const T &key) const
   {
     unsigned int size = header.unitSize;
-    int min = 0, max = (int) header.nUnits - 1;
+    int min = 0, max = (int) get_length () - 1;
     while (min <= max)
     {
       int mid = ((unsigned int) min + (unsigned int) max) / 2;

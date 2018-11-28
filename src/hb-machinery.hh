@@ -260,12 +260,14 @@ struct hb_sanitize_context_t :
   inline void set_max_ops (int max_ops_) { max_ops = max_ops_; }
 
   template <typename T>
-  inline void set_object (const T& obj)
+  inline void set_object (const T *obj)
   {
     reset_object ();
 
-    const char *obj_start = (const char *) &obj;
-    const char *obj_end = (const char *) &obj + obj.get_size ();
+    if (!obj) return;
+
+    const char *obj_start = (const char *) obj;
+    const char *obj_end = (const char *) obj + obj->get_size ();
     assert (obj_start <= obj_end); /* Must not overflow. */
 
     if (unlikely (obj_end < this->start || this->end < obj_start))
@@ -478,6 +480,23 @@ struct hb_sanitize_context_t :
   hb_blob_t *blob;
   unsigned int num_glyphs;
   bool  num_glyphs_set;
+};
+
+struct hb_sanitize_with_object_t
+{
+  template <typename T>
+  inline hb_sanitize_with_object_t (hb_sanitize_context_t *c,
+				    const T& obj) : c (c)
+  {
+    c->set_object (obj);
+  }
+  inline ~hb_sanitize_with_object_t (void)
+  {
+    c->reset_object ();
+  }
+
+  private:
+  hb_sanitize_context_t *c;
 };
 
 
@@ -702,6 +721,12 @@ struct BEInt<Type, 2>
   }
   inline operator Type (void) const
   {
+#if defined(__GNUC__) || defined(__clang__)
+    /* Spoon-feed the compiler a big-endian integer with alignment 1.
+     * https://github.com/harfbuzz/harfbuzz/pull/1398 */
+    struct __attribute__((packed)) packed_uint16_t { uint16_t v; };
+    return __builtin_bswap16 (((packed_uint16_t *) this)->v);
+#endif
     return (v[0] <<  8)
          + (v[1]      );
   }
