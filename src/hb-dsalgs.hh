@@ -287,11 +287,15 @@ hb_ceil_to_4 (unsigned int v)
   return ((v - 1) | 3) + 1;
 }
 
-template <typename T> class hb_assert_unsigned_t;
-template <> class hb_assert_unsigned_t<unsigned char> {};
-template <> class hb_assert_unsigned_t<unsigned short> {};
-template <> class hb_assert_unsigned_t<unsigned int> {};
-template <> class hb_assert_unsigned_t<unsigned long> {};
+template <typename T> struct hb_is_signed;
+template <> struct hb_is_signed<signed char> { enum { value = true }; };
+template <> struct hb_is_signed<signed short> { enum { value = true }; };
+template <> struct hb_is_signed<signed int> { enum { value = true }; };
+template <> struct hb_is_signed<signed long> { enum { value = true }; };
+template <> struct hb_is_signed<unsigned char> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned short> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned int> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned long> { enum { value = false }; };
 
 template <typename T> static inline bool
 hb_in_range (T u, T lo, T hi)
@@ -301,7 +305,7 @@ hb_in_range (T u, T lo, T hi)
    * one right now.  Declaring a variable won't work as HB_UNUSED
    * is unusable on some platforms and unused types are less likely
    * to generate a warning than unused variables. */
-  static_assert ((sizeof (hb_assert_unsigned_t<T>) >= 0), "");
+  static_assert (!hb_is_signed<T>::value, "");
 
   /* The casts below are important as if T is smaller than int,
    * the subtract results will become a signed int! */
@@ -571,8 +575,9 @@ struct hb_array_t
   inline hb_array_t (const hb_array_t &o) : arrayZ (o.arrayZ), len (o.len) {}
   inline hb_array_t (Type *array_, unsigned int len_) : arrayZ (array_), len (len_) {}
 
-  inline Type& operator [] (unsigned int i) const
+  inline Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= len)) return Null(Type);
     return arrayZ[i];
   }
@@ -735,26 +740,26 @@ inline hb_sorted_array_t<T> hb_sorted_array (T *array, unsigned int len)
 
 struct HbOpOr
 {
-  static const bool passthru_left = true;
-  static const bool passthru_right = true;
+  enum { passthru_left = true };
+  enum { passthru_right = true };
   template <typename T> static void process (T &o, const T &a, const T &b) { o = a | b; }
 };
 struct HbOpAnd
 {
-  static const bool passthru_left = false;
-  static const bool passthru_right = false;
+  enum { passthru_left = false };
+  enum { passthru_right = false };
   template <typename T> static void process (T &o, const T &a, const T &b) { o = a & b; }
 };
 struct HbOpMinus
 {
-  static const bool passthru_left = true;
-  static const bool passthru_right = false;
+  enum { passthru_left = true };
+  enum { passthru_right = false };
   template <typename T> static void process (T &o, const T &a, const T &b) { o = a & ~b; }
 };
 struct HbOpXor
 {
-  static const bool passthru_left = true;
-  static const bool passthru_right = true;
+  enum { passthru_left = true };
+  enum { passthru_right = true };
   template <typename T> static void process (T &o, const T &a, const T &b) { o = a ^ b; }
 };
 

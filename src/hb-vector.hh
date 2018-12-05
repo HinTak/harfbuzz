@@ -78,14 +78,16 @@ struct hb_vector_t
   inline const Type * arrayZ (void) const
   { return arrayZ_ ? arrayZ_ : static_array; }
 
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= len))
       return Crap (Type);
     return arrayZ()[i];
   }
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= len))
       return Null(Type);
     return arrayZ()[i];
@@ -101,8 +103,10 @@ struct hb_vector_t
   inline hb_sorted_array_t<const Type> as_sorted_array (void) const
   { return hb_sorted_array (arrayZ(), len); }
 
-  template <typename T> inline operator  T * (void) { return arrayZ(); }
-  template <typename T> inline operator const T * (void) const { return arrayZ(); }
+  template <typename T> explicit_operator inline operator  T * (void) { return arrayZ(); }
+  template <typename T> explicit_operator inline operator const T * (void) const { return arrayZ(); }
+  inline operator hb_array_t<Type> (void) { return as_array (); }
+  inline operator hb_array_t<const Type> (void) const { as_array (); }
 
   inline Type * operator  + (unsigned int i) { return arrayZ() + i; }
   inline const Type * operator  + (unsigned int i) const { return arrayZ() + i; }

@@ -658,7 +658,7 @@ struct Supplier
   }
   inline Supplier (const hb_vector_t<Type> *v)
   {
-    head = *v;
+    head = (const Type *) *v;
     len = v->len;
     stride = sizeof (Type);
   }
@@ -721,7 +721,7 @@ struct BEInt<Type, 2>
   }
   inline operator Type (void) const
   {
-#if defined(__GNUC__) || defined(__clang__)
+#if (defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__)
     /* Spoon-feed the compiler a big-endian integer with alignment 1.
      * https://github.com/harfbuzz/harfbuzz/pull/1398 */
     struct __attribute__((packed)) packed_uint16_t { uint16_t v; };

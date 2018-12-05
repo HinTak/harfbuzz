@@ -363,6 +363,14 @@ struct Lookup
     }
   }
 
+  inline typename T::type get_class (hb_codepoint_t glyph_id,
+				     unsigned int num_glyphs,
+				     unsigned int outOfRange) const
+  {
+    const T *v = get_value (glyph_id, num_glyphs);
+    return v ? *v : outOfRange;
+  }
+
   inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
@@ -480,7 +488,7 @@ struct StateTable
 {
   typedef typename Types::HBUINT HBUINT;
   typedef typename Types::HBUSHORT HBUSHORT;
-  typedef typename Types::ClassType ClassType;
+  typedef typename Types::ClassTypeNarrow ClassType;
 
   enum State
   {
@@ -496,7 +504,7 @@ struct StateTable
   };
 
   inline int new_state (unsigned int newState) const
-  { return Types::extended ? newState : ((int) newState - (int) stateArrayTable) / nClasses; }
+  { return Types::extended ? newState : ((int) newState - (int) stateArrayTable) / (int) nClasses; }
 
   inline unsigned int get_class (hb_codepoint_t glyph_id, unsigned int num_glyphs) const
   {
@@ -638,12 +646,19 @@ struct StateTable
   DEFINE_SIZE_STATIC (4 * sizeof (HBUINT));
 };
 
+template <typename HBUCHAR>
 struct ClassTable
 {
   inline unsigned int get_class (hb_codepoint_t glyph_id, unsigned int outOfRange) const
   {
     unsigned int i = glyph_id - firstGlyph;
     return i >= classArray.len ? outOfRange : classArray.arrayZ[i];
+  }
+  inline unsigned int get_class (hb_codepoint_t glyph_id,
+				 unsigned int num_glyphs HB_UNUSED,
+				 unsigned int outOfRange) const
+  {
+    return get_class (glyph_id, outOfRange);
   }
   inline bool sanitize (hb_sanitize_context_t *c) const
   {
@@ -652,7 +667,7 @@ struct ClassTable
   }
   protected:
   GlyphID		firstGlyph;	/* First glyph index included in the trimmed array. */
-  ArrayOf<HBUINT8>	classArray;	/* The class codes (indexed by glyph index minus
+  ArrayOf<HBUCHAR>	classArray;	/* The class codes (indexed by glyph index minus
 					 * firstGlyph). */
   public:
   DEFINE_SIZE_ARRAY (4, classArray);
@@ -660,24 +675,25 @@ struct ClassTable
 
 struct ObsoleteTypes
 {
-  static const bool extended = false;
+  enum { extended = false };
   typedef HBUINT16 HBUINT;
   typedef HBUINT8 HBUSHORT;
-  struct ClassType : ClassTable
-  {
-    inline unsigned int get_class (hb_codepoint_t glyph_id,
-				   unsigned int num_glyphs HB_UNUSED,
-				   unsigned int outOfRange) const
-    {
-      return ClassTable::get_class (glyph_id, outOfRange);
-    }
-  };
+  typedef ClassTable<HBUINT8> ClassTypeNarrow;
+  typedef ClassTable<HBUINT16> ClassTypeWide;
+
   template <typename T>
   static inline unsigned int offsetToIndex (unsigned int offset,
 					    const void *base,
 					    const T *array)
   {
     return (offset - ((const char *) array - (const char *) base)) / sizeof (T);
+  }
+  template <typename T>
+  static inline unsigned int byteOffsetToIndex (unsigned int offset,
+						const void *base,
+						const T *array)
+  {
+    return offsetToIndex (offset, base, array);
   }
   template <typename T>
   static inline unsigned int wordOffsetToIndex (unsigned int offset,
@@ -689,25 +705,25 @@ struct ObsoleteTypes
 };
 struct ExtendedTypes
 {
-  static const bool extended = true;
+  enum { extended = true };
   typedef HBUINT32 HBUINT;
   typedef HBUINT16 HBUSHORT;
-  struct ClassType : Lookup<HBUINT16>
-  {
-    inline unsigned int get_class (hb_codepoint_t glyph_id,
-				   unsigned int num_glyphs,
-				   unsigned int outOfRange) const
-    {
-      const HBUINT16 *v = get_value (glyph_id, num_glyphs);
-      return v ? *v : outOfRange;
-    }
-  };
+  typedef Lookup<HBUINT16> ClassTypeNarrow;
+  typedef Lookup<HBUINT16> ClassTypeWide;
+
   template <typename T>
   static inline unsigned int offsetToIndex (unsigned int offset,
 					    const void *base,
 					    const T *array)
   {
     return offset;
+  }
+  template <typename T>
+  static inline unsigned int byteOffsetToIndex (unsigned int offset,
+						const void *base,
+						const T *array)
+  {
+    return offset / 2;
   }
   template <typename T>
   static inline unsigned int wordOffsetToIndex (unsigned int offset,

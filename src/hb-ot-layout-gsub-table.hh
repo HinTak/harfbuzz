@@ -270,7 +270,7 @@ struct SingleSubst
       /* TODO(serialize) check for wrap-around */
       delta = substitutes[0] - glyphs[0];
       for (unsigned int i = 1; i < num_glyphs; i++)
-	if (delta != substitutes[i] - glyphs[i]) {
+	if (delta != (int) (substitutes[i] - glyphs[i])) {
 	  format = 2;
 	  break;
 	}
@@ -1475,7 +1475,7 @@ struct SubstLookup : Lookup
 
 struct GSUB : GSUBGPOS
 {
-  static const hb_tag_t tableTag	= HB_OT_TAG_GSUB;
+  enum { tableTag = HB_OT_TAG_GSUB };
 
   inline const SubstLookup& get_lookup (unsigned int i) const
   { return CastR<SubstLookup> (GSUBGPOS::get_lookup (i)); }

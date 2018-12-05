@@ -52,13 +52,19 @@ namespace OT {
  * Int types
  */
 
+template <bool is_signed> struct hb_signedness_int;
+template <> struct hb_signedness_int<false> { typedef unsigned int value; };
+template <> struct hb_signedness_int<true>  { typedef   signed int value; };
+
 /* Integer types in big-endian order and no alignment requirement */
 template <typename Type, unsigned int Size>
 struct IntType
 {
   typedef Type type;
-  inline void set (Type i) { v.set (i); }
-  inline operator Type (void) const { return v; }
+  typedef typename hb_signedness_int<hb_is_signed<Type>::value>::value wide_type;
+
+  inline void set (wide_type i) { v.set (i); }
+  inline operator wide_type (void) const { return v; }
   inline bool operator == (const IntType<Type,Size> &o) const { return (Type) v == (Type) o.v; }
   inline bool operator != (const IntType<Type,Size> &o) const { return !(*this == o); }
   static inline int cmp (const IntType<Type,Size> *a, const IntType<Type,Size> *b) { return b->cmp (*a); }
@@ -88,6 +94,8 @@ typedef IntType<uint16_t, 2> HBUINT16;	/* 16-bit unsigned integer. */
 typedef IntType<int16_t,  2> HBINT16;	/* 16-bit signed integer. */
 typedef IntType<uint32_t, 4> HBUINT32;	/* 32-bit unsigned integer. */
 typedef IntType<int32_t,  4> HBINT32;	/* 32-bit signed integer. */
+/* Note: we cannot defined a signed HBINT24 because there's no corresponding C type.
+ * Works for unsigned, but not signed, since we rely on compiler for sign-extension. */
 typedef IntType<uint32_t, 3> HBUINT24;	/* 24-bit unsigned integer. */
 
 /* 16-bit signed integer (HBINT16) that describes a quantity in FUnits. */
@@ -351,29 +359,32 @@ struct UnsizedArrayOf
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE (UnsizedArrayOf, Type);
 
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     const Type *p = &arrayZ[i];
     if (unlikely (p < arrayZ)) return Null (Type); /* Overflowed. */
     return *p;
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     Type *p = &arrayZ[i];
     if (unlikely (p < arrayZ)) return Crap (Type); /* Overflowed. */
     return *p;
   }
 
-  template <typename T> inline operator T * (void) { return arrayZ; }
-  template <typename T> inline operator const T * (void) const { return arrayZ; }
-
   inline unsigned int get_size (unsigned int len) const
   { return len * Type::static_size; }
 
+  template <typename T> inline operator T * (void) { return arrayZ; }
+  template <typename T> inline operator const T * (void) const { return arrayZ; }
   inline hb_array_t<Type> as_array (unsigned int len)
   { return hb_array (arrayZ, len); }
   inline hb_array_t<const Type> as_array (unsigned int len) const
   { return hb_array (arrayZ, len); }
+  inline operator hb_array_t<Type> (void) { return as_array (); }
+  inline operator hb_array_t<const Type> (void) const { as_array (); }
 
   template <typename T>
   inline Type &lsearch (unsigned int len, const T &x, Type &not_found = Crap (Type))
@@ -441,14 +452,16 @@ struct UnsizedOffsetArrayOf : UnsizedArrayOf<OffsetTo<Type, OffsetType, has_null
 template <typename Type, typename OffsetType, bool has_null=true>
 struct UnsizedOffsetListOf : UnsizedOffsetArrayOf<Type, OffsetType, has_null>
 {
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     const OffsetTo<Type, OffsetType, has_null> *p = &this->arrayZ[i];
     if (unlikely (p < this->arrayZ)) return Null (Type); /* Overflowed. */
     return this+*p;
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     const OffsetTo<Type, OffsetType, has_null> *p = &this->arrayZ[i];
     if (unlikely (p < this->arrayZ)) return Crap (Type); /* Overflowed. */
     return this+*p;
@@ -476,6 +489,8 @@ struct SortedUnsizedArrayOf : UnsizedArrayOf<Type>
   { return hb_sorted_array (this->arrayZ, len); }
   inline hb_sorted_array_t<const Type> as_array (unsigned int len) const
   { return hb_sorted_array (this->arrayZ, len); }
+  inline operator hb_sorted_array_t<Type> (void) { return as_array (); }
+  inline operator hb_sorted_array_t<const Type> (void) const { as_array (); }
 
   template <typename T>
   inline Type &bsearch (unsigned int len, const T &x, Type &not_found = Crap (Type))
@@ -501,13 +516,15 @@ struct ArrayOf
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (ArrayOf, Type, LenType);
 
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= len)) return Null (Type);
     return arrayZ[i];
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= len)) return Crap (Type);
     return arrayZ[i];
   }
@@ -519,6 +536,8 @@ struct ArrayOf
   { return hb_array (arrayZ, len); }
   inline hb_array_t<const Type> as_array (void) const
   { return hb_array (arrayZ, len); }
+  inline operator hb_array_t<Type> (void) { return as_array (); }
+  inline operator hb_array_t<const Type> (void) const { as_array (); }
 
   inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int count) const
   { return as_array ().sub_array (start_offset, count);}
@@ -625,13 +644,15 @@ struct LOffsetLArrayOf : ArrayOf<OffsetTo<Type, HBUINT32>, HBUINT32> {};
 template <typename Type>
 struct OffsetListOf : OffsetArrayOf<Type>
 {
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= this->len)) return Null (Type);
     return this+this->arrayZ[i];
   }
-  inline const Type& operator [] (unsigned int i)
+  inline const Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= this->len)) return Crap (Type);
     return this+this->arrayZ[i];
   }
@@ -668,13 +689,15 @@ struct HeadlessArrayOf
 
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (HeadlessArrayOf, Type, LenType);
 
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= lenP1 || !i)) return Null (Type);
     return arrayZ[i-1];
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= lenP1 || !i)) return Crap (Type);
     return arrayZ[i-1];
   }
@@ -734,13 +757,15 @@ struct ArrayOfM1
 {
   HB_NO_CREATE_COPY_ASSIGN_TEMPLATE2 (ArrayOfM1, Type, LenType);
 
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i > lenM1)) return Null (Type);
     return arrayZ[i];
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i > lenM1)) return Crap (Type);
     return arrayZ[i];
   }
@@ -782,6 +807,8 @@ struct SortedArrayOf : ArrayOf<Type, LenType>
   { return hb_sorted_array (this->arrayZ, this->len); }
   inline hb_sorted_array_t<const Type> as_array (void) const
   { return hb_sorted_array (this->arrayZ, this->len); }
+  inline operator hb_sorted_array_t<Type> (void) { return as_array (); }
+  inline operator hb_sorted_array_t<const Type> (void) const { as_array (); }
 
   inline hb_array_t<const Type> sub_array (unsigned int start_offset, unsigned int count) const
   { return as_array ().sub_array (start_offset, count);}
@@ -890,13 +917,15 @@ struct VarSizedBinSearchArrayOf
     return true;
   }
 
-  inline const Type& operator [] (unsigned int i) const
+  inline const Type& operator [] (int i_) const
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= get_length ())) return Null (Type);
     return StructAtOffset<Type> (&bytesZ, i * header.unitSize);
   }
-  inline Type& operator [] (unsigned int i)
+  inline Type& operator [] (int i_)
   {
+    unsigned int i = (unsigned int) i_;
     if (unlikely (i >= get_length ())) return Crap (Type);
     return StructAtOffset<Type> (&bytesZ, i * header.unitSize);
   }

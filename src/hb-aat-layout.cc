@@ -29,6 +29,7 @@
 
 #include "hb-ot-face.hh"
 #include "hb-aat-layout.hh"
+#include "hb-aat-fdsc-table.hh" // Just so we compile it; unused otherwise.
 #include "hb-aat-layout-ankr-table.hh"
 #include "hb-aat-layout-bsln-table.hh" // Just so we compile it; unused otherwise.
 #include "hb-aat-layout-feat-table.hh"
@@ -205,7 +206,14 @@ hb_aat_layout_compile_map (const hb_aat_map_builder_t *mapper,
 }
 
 
-bool
+/*
+ * hb_aat_layout_has_substitution:
+ * @face:
+ *
+ * Returns:
+ * Since: REPLACEME
+ */
+hb_bool_t
 hb_aat_layout_has_substitution (hb_face_t *face)
 {
   return face->table.morx->has_data () ||
@@ -259,9 +267,14 @@ hb_aat_layout_remove_deleted_glyphs (hb_buffer_t *buffer)
   hb_ot_layout_delete_glyphs_inplace (buffer, is_deleted_glyph);
 }
 
-
-
-bool
+/*
+ * hb_aat_layout_has_positioning:
+ * @face:
+ *
+ * Returns:
+ * Since: REPLACEME
+ */
+hb_bool_t
 hb_aat_layout_has_positioning (hb_face_t *face)
 {
   return face->table.kerx->has_data ();
@@ -284,7 +297,14 @@ hb_aat_layout_position (const hb_ot_shape_plan_t *plan,
 }
 
 
-bool
+/*
+ * hb_aat_layout_has_tracking:
+ * @face:
+ *
+ * Returns:
+ * Since: REPLACEME
+ */
+hb_bool_t
 hb_aat_layout_has_tracking (hb_face_t *face)
 {
   return face->table.trak->has_data ();
@@ -318,7 +338,7 @@ _hb_aat_language_get (hb_face_t *face,
  *
  * Return value: Number of all available feature types.
  *
- * Since: REPLACEME
+ * Since: 2.2.0
  */
 unsigned int
 hb_aat_layout_get_feature_types (hb_face_t                    *face,
@@ -336,7 +356,7 @@ hb_aat_layout_get_feature_types (hb_face_t                    *face,
  *
  * Return value: Name ID index
  *
- * Since: REPLACEME
+ * Since: 2.2.0
  */
 hb_ot_name_id_t
 hb_aat_layout_feature_type_get_name_id (hb_face_t                    *face,
@@ -358,7 +378,7 @@ hb_aat_layout_feature_type_get_name_id (hb_face_t                    *face,
  *
  * Return value: Number of all available feature selectors.
  *
- * Since: REPLACEME
+ * Since: 2.2.0
  */
 unsigned int
 hb_aat_layout_feature_type_get_selector_infos (hb_face_t                             *face,
