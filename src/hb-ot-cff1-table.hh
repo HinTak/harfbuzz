@@ -656,7 +656,7 @@ struct NameDictValues
   static inline enum NameDictValIndex name_op_to_index (OpCode op)
   {
     switch (op) {
-      default:
+      default: // can't happen - just make some compiler happy
       case OpCode_version:
 	return version;
       case OpCode_Notice:
@@ -673,7 +673,9 @@ struct NameDictValues
 	return postscript;
       case OpCode_FontName:
 	return fontName;
-      }
+      case OpCode_BaseFontName:
+	return baseFontName;
+    }
   }
 
   unsigned int  values[ValCount];
@@ -1067,7 +1069,7 @@ struct cff1
       { fini (); return; }
 
       globalSubrs = &StructAtOffset<CFF1Subrs> (stringIndex, stringIndex->get_size ());
-      if ((globalSubrs != &Null (CFF1Subrs)) && !stringIndex->sanitize (&sc))
+      if ((globalSubrs != &Null (CFF1Subrs)) && !globalSubrs->sanitize (&sc))
       { fini (); return; }
 
       charStrings = &StructAtOffsetOrNull<CFF1CharStrings> (cff, topDict.charStringsOffset);
