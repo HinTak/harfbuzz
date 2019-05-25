@@ -157,7 +157,6 @@ AAT::hb_aat_apply_context_t::hb_aat_apply_context_t (const hb_ot_shape_plan_t *p
 						       buffer (buffer_),
 						       sanitizer (),
 						       ankr_table (&Null(AAT::ankr)),
-						       ankr_end (nullptr),
 						       lookup_index (0),
 						       debug_depth (0)
 {
@@ -167,18 +166,12 @@ AAT::hb_aat_apply_context_t::hb_aat_apply_context_t (const hb_ot_shape_plan_t *p
   sanitizer.set_max_ops (HB_SANITIZE_MAX_OPS_MAX);
 }
 
-AAT::hb_aat_apply_context_t::~hb_aat_apply_context_t (void)
-{
-  sanitizer.end_processing ();
-}
+AAT::hb_aat_apply_context_t::~hb_aat_apply_context_t ()
+{ sanitizer.end_processing (); }
 
 void
-AAT::hb_aat_apply_context_t::set_ankr_table (const AAT::ankr *ankr_table_,
-					     const char      *ankr_end_)
-{
-  ankr_table = ankr_table_;
-  ankr_end = ankr_end_;
-}
+AAT::hb_aat_apply_context_t::set_ankr_table (const AAT::ankr *ankr_table_)
+{ ankr_table = ankr_table_; }
 
 
 /*
@@ -211,7 +204,7 @@ hb_aat_layout_compile_map (const hb_aat_map_builder_t *mapper,
  * @face:
  *
  * Returns:
- * Since: REPLACEME
+ * Since: 2.3.0
  */
 hb_bool_t
 hb_aat_layout_has_substitution (hb_face_t *face)
@@ -272,7 +265,7 @@ hb_aat_layout_remove_deleted_glyphs (hb_buffer_t *buffer)
  * @face:
  *
  * Returns:
- * Since: REPLACEME
+ * Since: 2.3.0
  */
 hb_bool_t
 hb_aat_layout_has_positioning (hb_face_t *face)
@@ -288,11 +281,8 @@ hb_aat_layout_position (const hb_ot_shape_plan_t *plan,
   hb_blob_t *kerx_blob = font->face->table.kerx.get_blob ();
   const AAT::kerx& kerx = *kerx_blob->as<AAT::kerx> ();
 
-  hb_blob_t *ankr_blob = font->face->table.ankr.get_blob ();;
-  const AAT::ankr& ankr = *font->face->table.ankr;
-
   AAT::hb_aat_apply_context_t c (plan, font, buffer, kerx_blob);
-  c.set_ankr_table (&ankr, ankr_blob->data + ankr_blob->length);
+  c.set_ankr_table (font->face->table.ankr.get ());
   kerx.apply (&c);
 }
 
@@ -302,7 +292,7 @@ hb_aat_layout_position (const hb_ot_shape_plan_t *plan,
  * @face:
  *
  * Returns:
- * Since: REPLACEME
+ * Since: 2.3.0
  */
 hb_bool_t
 hb_aat_layout_has_tracking (hb_face_t *face)
@@ -361,7 +351,9 @@ hb_aat_layout_get_feature_types (hb_face_t                    *face,
 hb_ot_name_id_t
 hb_aat_layout_feature_type_get_name_id (hb_face_t                    *face,
 					hb_aat_layout_feature_type_t  feature_type)
-{ return face->table.feat->get_feature_name_id (feature_type); }
+{
+  return face->table.feat->get_feature_name_id (feature_type);
+}
 
 /**
  * hb_aat_layout_feature_type_get_selectors:

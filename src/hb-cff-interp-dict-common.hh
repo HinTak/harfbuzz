@@ -35,40 +35,30 @@ namespace CFF {
 using namespace OT;
 
 /* an opstr and the parsed out dict value(s) */
-struct DictVal : OpStr
+struct dict_val_t : op_str_t
 {
-  inline void init (void)
-  {
-    single_val.set_int (0);
-  }
+  void init () { single_val.set_int (0); }
+  void fini () {}
 
-  inline void fini (void)
-  {
-  }
-
-  Number	      single_val;
+  number_t	      single_val;
 };
 
-typedef DictVal NumDictVal;
+typedef dict_val_t num_dict_val_t;
 
-template <typename VAL> struct DictValues : ParsedValues<VAL> {};
+template <typename VAL> struct dict_values_t : parsed_values_t<VAL> {};
 
-template <typename OPSTR=OpStr>
-struct TopDictValues : DictValues<OPSTR>
+template <typename OPSTR=op_str_t>
+struct top_dict_values_t : dict_values_t<OPSTR>
 {
-  inline void init (void)
+  void init ()
   {
-    DictValues<OPSTR>::init ();
+    dict_values_t<OPSTR>::init ();
     charStringsOffset = 0;
     FDArrayOffset = 0;
   }
+  void fini () { dict_values_t<OPSTR>::fini (); }
 
-  inline void fini (void)
-  {
-    DictValues<OPSTR>::fini ();
-  }
-
-  inline unsigned int calculate_serialized_op_size (const OPSTR& opstr) const
+  unsigned int calculate_serialized_op_size (const OPSTR& opstr) const
   {
     switch (opstr.op)
     {
@@ -77,7 +67,7 @@ struct TopDictValues : DictValues<OPSTR>
 	return OpCode_Size (OpCode_longintdict) + 4 + OpCode_Size (opstr.op);
 
       default:
-	return opstr.str.len;
+	return opstr.str.length;
     }
   }
 
@@ -85,26 +75,26 @@ struct TopDictValues : DictValues<OPSTR>
   unsigned int  FDArrayOffset;
 };
 
-struct DictOpSet : OpSet<Number>
+struct dict_opset_t : opset_t<number_t>
 {
-  static inline void process_op (OpCode op, InterpEnv<Number>& env)
+  static void process_op (op_code_t op, interp_env_t<number_t>& env)
   {
     switch (op) {
       case OpCode_longintdict:  /* 5-byte integer */
-	env.argStack.push_longint_from_substr (env.substr);
+	env.argStack.push_longint_from_substr (env.str_ref);
 	break;
 
       case OpCode_BCD:  /* real number */
-	env.argStack.push_real (parse_bcd (env.substr));
+	env.argStack.push_real (parse_bcd (env.str_ref));
 	break;
 
       default:
-	OpSet<Number>::process_op (op, env);
+	opset_t<number_t>::process_op (op, env);
 	break;
     }
   }
 
-  static inline double parse_bcd (SubByteStr& substr)
+  static double parse_bcd (byte_str_ref_t& str_ref)
   {
     bool    neg = false;
     double  int_part = 0;
@@ -115,7 +105,7 @@ struct DictOpSet : OpSet<Number>
     bool    exp_overflow = false;
     enum Part { INT_PART=0, FRAC_PART, EXP_PART } part = INT_PART;
     enum Nibble { DECIMAL=10, EXP_POS, EXP_NEG, RESERVED, NEG, END };
-    const uint64_t MAX_FRACT = 0xFFFFFFFFFFFFFllu; /* 1^52-1 */
+    const uint64_t MAX_FRACT = 0xFFFFFFFFFFFFFull; /* 1^52-1 */
     const uint32_t MAX_EXP = 0x7FFu; /* 1^11-1 */
 
     double  value = 0.0;
@@ -125,13 +115,13 @@ struct DictOpSet : OpSet<Number>
       char d;
       if ((i & 1) == 0)
       {
-	if (!substr.avail ())
+	if (!str_ref.avail ())
 	{
-	  substr.set_error ();
+	  str_ref.set_error ();
 	  return 0.0;
 	}
-	byte = substr[0];
-	substr.inc ();
+	byte = str_ref[0];
+	str_ref.inc ();
 	d = byte >> 4;
       }
       else
@@ -140,7 +130,7 @@ struct DictOpSet : OpSet<Number>
       switch (d)
       {
 	case RESERVED:
-	  substr.set_error ();
+	  str_ref.set_error ();
 	  return value;
 
 	case END:
@@ -172,7 +162,7 @@ struct DictOpSet : OpSet<Number>
 	case NEG:
 	  if (i != 0)
 	  {
-	    substr.set_error ();
+	    str_ref.set_error ();
 	    return 0.0;
 	  }
 	  neg = true;
@@ -181,7 +171,7 @@ struct DictOpSet : OpSet<Number>
 	case DECIMAL:
 	  if (part != INT_PART)
 	  {
-	    substr.set_error ();
+	    str_ref.set_error ();
 	    return value;
 	  }
 	  part = FRAC_PART;
@@ -194,7 +184,7 @@ struct DictOpSet : OpSet<Number>
 	case EXP_POS:
 	  if (part == EXP_PART)
 	  {
-	    substr.set_error ();
+	    str_ref.set_error ();
 	    return value;
 	  }
 	  part = EXP_PART;
@@ -230,7 +220,7 @@ struct DictOpSet : OpSet<Number>
     return value;
   }
 
-  static inline bool is_hint_op (OpCode op)
+  static bool is_hint_op (op_code_t op)
   {
     switch (op)
     {
@@ -255,10 +245,10 @@ struct DictOpSet : OpSet<Number>
   }
 };
 
-template <typename VAL=OpStr>
-struct TopDictOpSet : DictOpSet
+template <typename VAL=op_str_t>
+struct top_dict_opset_t : dict_opset_t
 {
-  static inline void process_op (OpCode op, InterpEnv<Number>& env, TopDictValues<VAL> & dictval)
+  static void process_op (op_code_t op, interp_env_t<number_t>& env, top_dict_values_t<VAL> & dictval)
   {
     switch (op) {
       case OpCode_CharStrings:
@@ -273,19 +263,19 @@ struct TopDictOpSet : DictOpSet
 	env.clear_args ();
 	break;
       default:
-	DictOpSet::process_op (op, env);
+	dict_opset_t::process_op (op, env);
 	break;
     }
   }
 };
 
-template <typename OPSET, typename PARAM, typename ENV=NumInterpEnv>
-struct DictInterpreter : Interpreter<ENV>
+template <typename OPSET, typename PARAM, typename ENV=num_interp_env_t>
+struct dict_interpreter_t : interpreter_t<ENV>
 {
-  inline bool interpret (PARAM& param)
+  bool interpret (PARAM& param)
   {
     param.init ();
-    while (SUPER::env.substr.avail ())
+    while (SUPER::env.str_ref.avail ())
     {
       OPSET::process_op (SUPER::env.fetch_op (), SUPER::env, param);
       if (unlikely (SUPER::env.in_error ()))
@@ -296,7 +286,7 @@ struct DictInterpreter : Interpreter<ENV>
   }
 
   private:
-  typedef Interpreter<ENV> SUPER;
+  typedef interpreter_t<ENV> SUPER;
 };
 
 } /* namespace CFF */

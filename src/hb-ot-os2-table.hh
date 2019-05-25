@@ -1,5 +1,6 @@
 /*
  * Copyright © 2011,2012  Google, Inc.
+ * Copyright © 2018  Ebrahim Byagowi
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -43,7 +44,7 @@ namespace OT {
 
 struct OS2V1Tail
 {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -58,7 +59,7 @@ struct OS2V1Tail
 
 struct OS2V2Tail
 {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -76,7 +77,7 @@ struct OS2V2Tail
 
 struct OS2V5Tail
 {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -91,13 +92,60 @@ struct OS2V5Tail
 
 struct OS2
 {
-  enum { tableTag = HB_OT_TAG_OS2 };
+  static constexpr hb_tag_t tableTag = HB_OT_TAG_OS2;
 
-  inline const OS2V1Tail &v1 (void) const { return version >= 1 ? v1X : Null (OS2V1Tail); }
-  inline const OS2V2Tail &v2 (void) const { return version >= 2 ? v2X : Null (OS2V2Tail); }
-  inline const OS2V5Tail &v5 (void) const { return version >= 5 ? v5X : Null (OS2V5Tail); }
+  bool has_data () const { return this != &Null (OS2); }
 
-  inline bool subset (hb_subset_plan_t *plan) const
+  const OS2V1Tail &v1 () const { return version >= 1 ? v1X : Null (OS2V1Tail); }
+  const OS2V2Tail &v2 () const { return version >= 2 ? v2X : Null (OS2V2Tail); }
+  const OS2V5Tail &v5 () const { return version >= 5 ? v5X : Null (OS2V5Tail); }
+
+  enum selection_flag_t {
+    ITALIC		= 1u<<0,
+    UNDERSCORE		= 1u<<1,
+    NEGATIVE		= 1u<<2,
+    OUTLINED		= 1u<<3,
+    STRIKEOUT		= 1u<<4,
+    BOLD		= 1u<<5,
+    REGULAR		= 1u<<6,
+    USE_TYPO_METRICS	= 1u<<7,
+    WWS			= 1u<<8,
+    OBLIQUE		= 1u<<9
+  };
+
+  bool is_italic () const       { return fsSelection & ITALIC; }
+  bool is_oblique () const      { return fsSelection & OBLIQUE; }
+  bool is_typo_metrics () const { return fsSelection & USE_TYPO_METRICS; }
+
+  enum width_class_t {
+    FWIDTH_ULTRA_CONDENSED	= 1, /* 50% */
+    FWIDTH_EXTRA_CONDENSED	= 2, /* 62.5% */
+    FWIDTH_CONDENSED		= 3, /* 75% */
+    FWIDTH_SEMI_CONDENSED	= 4, /* 87.5% */
+    FWIDTH_NORMAL		= 5, /* 100% */
+    FWIDTH_SEMI_EXPANDED	= 6, /* 112.5% */
+    FWIDTH_EXPANDED		= 7, /* 125% */
+    FWIDTH_EXTRA_EXPANDED	= 8, /* 150% */
+    FWIDTH_ULTRA_EXPANDED	= 9  /* 200% */
+  };
+
+  float get_width () const
+  {
+    switch (usWidthClass) {
+    case FWIDTH_ULTRA_CONDENSED:return 50.f;
+    case FWIDTH_EXTRA_CONDENSED:return 62.5f;
+    case FWIDTH_CONDENSED:	return 75.f;
+    case FWIDTH_SEMI_CONDENSED:	return 87.5f;
+    default:
+    case FWIDTH_NORMAL:		return 100.f;
+    case FWIDTH_SEMI_EXPANDED:	return 112.5f;
+    case FWIDTH_EXPANDED:	return 125.f;
+    case FWIDTH_EXTRA_EXPANDED:	return 150.f;
+    case FWIDTH_ULTRA_EXPANDED:	return 200.f;
+    }
+  }
+
+  bool subset (hb_subset_plan_t *plan) const
   {
     hb_blob_t *os2_blob = hb_sanitize_context_t ().reference_table<OS2> (plan->source);
     hb_blob_t *os2_prime_blob = hb_blob_create_sub_blob (os2_blob, 0, -1);
@@ -122,8 +170,8 @@ struct OS2
     return result;
   }
 
-  inline void _update_unicode_ranges (const hb_set_t *codepoints,
-				      HBUINT32 ulUnicodeRange[4]) const
+  void _update_unicode_ranges (const hb_set_t *codepoints,
+			       HBUINT32 ulUnicodeRange[4]) const
   {
     for (unsigned int i = 0; i < 4; i++)
       ulUnicodeRange[i].set (0);
@@ -148,7 +196,7 @@ struct OS2
     }
   }
 
-  static inline void find_min_and_max_codepoint (const hb_set_t *codepoints,
+  static void find_min_and_max_codepoint (const hb_set_t *codepoints,
 						 uint16_t *min_cp, /* OUT */
 						 uint16_t *max_cp  /* OUT */)
   {
@@ -167,14 +215,10 @@ struct OS2
   };
 
   // https://github.com/Microsoft/Font-Validator/blob/520aaae/OTFontFileVal/val_OS2.cs#L644-L681
-  inline font_page_t get_font_page () const
-  {
-    if (version != 0)
-      return (font_page_t) 0;
-    return (font_page_t) (fsSelection & 0xFF00);
-  }
+  font_page_t get_font_page () const
+  { return (font_page_t) (version == 0 ? fsSelection & 0xFF00 : 0); }
 
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     if (unlikely (!c->check_struct (this))) return_trace (false);

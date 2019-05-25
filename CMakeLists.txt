@@ -552,7 +552,7 @@ endif ()
 if (UNIX OR MINGW)
   # Make symbols link locally
   include (CheckCXXCompilerFlag)
-  check_cxx_compiler_flag(-Bsymbolic-functions CXX_SUPPORTS_FLAG_BSYMB_FUNCS)
+  CHECK_CXX_COMPILER_FLAG(-Bsymbolic-functions CXX_SUPPORTS_FLAG_BSYMB_FUNCS)
   if (CXX_SUPPORTS_FLAG_BSYMB_FUNCS)
     link_libraries(-Bsymbolic-functions)
   endif ()
@@ -570,7 +570,15 @@ if (UNIX OR MINGW)
     # No threadsafe statics as we do it ourselves
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-threadsafe-statics")
   endif ()
+
+  CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+  if (COMPILER_SUPPORTS_CXX11)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+  else()
+    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+  endif()
 endif ()
+
 
 ## Define harfbuzz-gobject library
 if (HB_HAVE_GOBJECT)
@@ -696,6 +704,8 @@ if (HB_HAVE_INTROSPECTION)
       -DHB_H_IN
       -DHB_OT_H
       -DHB_OT_H_IN
+      -DHB_AAT_H
+      -DHB_AAT_H_IN
       -DHB_GOBJECT_H
       -DHB_GOBJECT_H_IN
       -DHB_EXTERN=
@@ -831,18 +841,6 @@ if (NOT SKIP_INSTALL_LIBRARIES AND NOT SKIP_INSTALL_ALL)
     endif ()
   endif ()
 endif ()
-
-if (UNIX AND CMAKE_GENERATOR STREQUAL "Ninja")
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
-  endif ()
-  if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color")
-  endif ()
-endif ()
-
 
 if (HB_BUILD_TESTS)
   ## src/ executables

@@ -59,7 +59,10 @@ struct hb_null_size
 { enum { value = _hb_null_size<T, _hb_bool_type<true> >::value }; };
 #define hb_null_size(T) hb_null_size<T>::value
 
-/* This doesn't belong here, but since is copy/paste from above, put it here. */
+/* These doesn't belong here, but since is copy/paste from above, put it here. */
+
+/* hb_static_size (T)
+ * Returns T::static_size if T::min_size is defined, or sizeof (T) otherwise. */
 
 template <typename T, typename B>
 struct _hb_static_size
@@ -74,6 +77,25 @@ struct hb_static_size
 #define hb_static_size(T) hb_static_size<T>::value
 
 
+/* hb_assign (obj, value)
+ * Calls obj.set (value) if obj.min_size is defined and value has different type
+ * from obj, or obj = v otherwise. */
+
+template <typename T, typename V, typename B>
+struct _hb_assign
+{ static inline void value (T &o, const V v) { o = v; } };
+template <typename T, typename V>
+struct _hb_assign<T, V, _hb_bool_type<(bool) (1 + (unsigned int) T::min_size)> >
+{ static inline void value (T &o, const V v) { o.set (v); } };
+template <typename T>
+struct _hb_assign<T, T, _hb_bool_type<(bool) (1 + (unsigned int) T::min_size)> >
+{ static inline void value (T &o, const T v) { o = v; } };
+
+template <typename T, typename V>
+static inline void hb_assign (T &o, const V v)
+{ _hb_assign<T, V, _hb_bool_type<true> >::value (o, v); }
+
+
 /*
  * Null()
  */
@@ -83,15 +105,18 @@ hb_vector_size_impl_t const _hb_NullPool[(HB_NULL_POOL_SIZE + sizeof (hb_vector_
 
 /* Generic nul-content Null objects. */
 template <typename Type>
-static inline Type const & Null (void) {
-  static_assert (hb_null_size (Type) <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
-  return *reinterpret_cast<Type const *> (_hb_NullPool);
-}
+struct Null {
+  static Type const & get_null ()
+  {
+    static_assert (hb_null_size (Type) <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
+    return *reinterpret_cast<Type const *> (_hb_NullPool);
+  }
+};
 template <typename QType>
 struct NullHelper
 {
   typedef typename hb_remove_const (typename hb_remove_reference (QType)) Type;
-  static inline const Type & get_null (void) { return Null<Type> (); }
+  static const Type & get_null () { return Null<Type>::get_null (); }
 };
 #define Null(Type) NullHelper<Type>::get_null ()
 
@@ -100,9 +125,11 @@ struct NullHelper
 	} /* Close namespace. */ \
 	extern HB_INTERNAL const unsigned char _hb_Null_##Namespace##_##Type[Namespace::Type::null_size]; \
 	template <> \
-	/*static*/ inline const Namespace::Type& Null<Namespace::Type> (void) { \
-	  return *reinterpret_cast<const Namespace::Type *> (_hb_Null_##Namespace##_##Type); \
-	} \
+	struct Null<Namespace::Type> { \
+	  static Namespace::Type const & get_null () { \
+	    return *reinterpret_cast<const Namespace::Type *> (_hb_Null_##Namespace##_##Type); \
+	  } \
+	}; \
 	namespace Namespace { \
 	static_assert (true, "Just so we take semicolon after.")
 #define DEFINE_NULL_NAMESPACE_BYTES(Namespace, Type) \
@@ -112,10 +139,12 @@ struct NullHelper
 #define DECLARE_NULL_INSTANCE(Type) \
 	extern HB_INTERNAL const Type _hb_Null_##Type; \
 	template <> \
-	/*static*/ inline const Type& Null<Type> (void) { \
-	  return _hb_Null_##Type; \
-	} \
-static_assert (true, "Just so we take semicolon after.")
+	struct Null<Type> { \
+	  static Type const & get_null () { \
+	    return _hb_Null_##Type; \
+	  } \
+	}; \
+	static_assert (true, "Just so we take semicolon after.")
 #define DEFINE_NULL_INSTANCE(Type) \
 	const Type _hb_Null_##Type
 
@@ -130,7 +159,7 @@ extern HB_INTERNAL
 
 /* CRAP pool: Common Region for Access Protection. */
 template <typename Type>
-static inline Type& Crap (void) {
+static inline Type& Crap () {
   static_assert (hb_null_size (Type) <= HB_NULL_POOL_SIZE, "Increase HB_NULL_POOL_SIZE.");
   Type *obj = reinterpret_cast<Type *> (_hb_CrapPool);
   memcpy (obj, &Null(Type), sizeof (*obj));
@@ -140,17 +169,17 @@ template <typename QType>
 struct CrapHelper
 {
   typedef typename hb_remove_const (typename hb_remove_reference (QType)) Type;
-  static inline Type & get_crap (void) { return Crap<Type> (); }
+  static Type & get_crap () { return Crap<Type> (); }
 };
 #define Crap(Type) CrapHelper<Type>::get_crap ()
 
 template <typename Type>
 struct CrapOrNullHelper {
-  static inline Type & get (void) { return Crap(Type); }
+  static Type & get () { return Crap(Type); }
 };
 template <typename Type>
 struct CrapOrNullHelper<const Type> {
-  static inline const Type & get (void) { return Null(Type); }
+  static const Type & get () { return Null(Type); }
 };
 #define CrapOrNull(Type) CrapOrNullHelper<Type>::get ()
 
@@ -164,16 +193,16 @@ struct hb_nonnull_ptr_t
 {
   typedef typename hb_remove_pointer (P) T;
 
-  inline hb_nonnull_ptr_t (T *v_ = nullptr) : v (v_) {}
-  inline T * operator = (T *v_) { return v = v_; }
-  inline T * operator -> (void) const { return get (); }
-  inline T & operator * (void) const { return *get (); }
-  inline T ** operator & (void) const { return &v; }
+  hb_nonnull_ptr_t (T *v_ = nullptr) : v (v_) {}
+  T * operator = (T *v_)   { return v = v_; }
+  T * operator -> () const { return get (); }
+  T & operator * () const  { return *get (); }
+  T ** operator & () const { return &v; }
   /* Only auto-cast to const types. */
-  template <typename C> inline operator const C * (void) const { return get (); }
-  inline operator const char * (void) const { return (const char *) get (); }
-  inline T * get (void) const { return v ? v : const_cast<T *> (&Null(T)); }
-  inline T * get_raw (void) const { return v; }
+  template <typename C> operator const C * () const { return get (); }
+  operator const char * () const { return (const char *) get (); }
+  T * get () const { return v ? v : const_cast<T *> (&Null(T)); }
+  T * get_raw () const { return v; }
 
   T *v;
 };

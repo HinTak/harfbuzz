@@ -56,17 +56,17 @@ struct CFF1FDSelect : FDSelect {};
 
 /* Encoding */
 struct Encoding0 {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (c->check_struct (this) && codes[nCodes - 1].sanitize (c));
+    return_trace (codes.sanitize (c));
   }
 
-  inline hb_codepoint_t get_code (hb_codepoint_t glyph) const
+  hb_codepoint_t get_code (hb_codepoint_t glyph) const
   {
     assert (glyph > 0);
     glyph--;
-    if (glyph < nCodes)
+    if (glyph < nCodes ())
     {
       return (hb_codepoint_t)codes[glyph];
     }
@@ -74,17 +74,16 @@ struct Encoding0 {
       return CFF_UNDEF_CODE;
   }
 
-  inline unsigned int get_size (void) const
-  { return HBUINT8::static_size * (nCodes + 1); }
+  HBUINT8 &nCodes () { return codes.len; }
+  HBUINT8 nCodes () const { return codes.len; }
 
-  HBUINT8     nCodes;
-  HBUINT8     codes[VAR];
+  ArrayOf<HBUINT8, HBUINT8> codes;
 
-  DEFINE_SIZE_ARRAY(1, codes);
+  DEFINE_SIZE_ARRAY_SIZED (1, codes);
 };
 
 struct Encoding1_Range {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -97,20 +96,17 @@ struct Encoding1_Range {
 };
 
 struct Encoding1 {
-  inline unsigned int get_size (void) const
-  { return HBUINT8::static_size + Encoding1_Range::static_size * nRanges; }
-
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (c->check_struct (this) && ((nRanges == 0) || (ranges[nRanges - 1]).sanitize (c)));
+    return_trace (ranges.sanitize (c));
   }
 
-  inline hb_codepoint_t get_code (hb_codepoint_t glyph) const
+  hb_codepoint_t get_code (hb_codepoint_t glyph) const
   {
     assert (glyph > 0);
     glyph--;
-    for (unsigned int i = 0; i < nRanges; i++)
+    for (unsigned int i = 0; i < nRanges (); i++)
     {
       if (glyph <= ranges[i].nLeft)
       {
@@ -121,14 +117,16 @@ struct Encoding1 {
     return CFF_UNDEF_CODE;
   }
 
-  HBUINT8	   nRanges;
-  Encoding1_Range   ranges[VAR];
+  HBUINT8 &nRanges () { return ranges.len; }
+  HBUINT8 nRanges () const { return ranges.len; }
 
-  DEFINE_SIZE_ARRAY (1, ranges);
+  ArrayOf<Encoding1_Range, HBUINT8> ranges;
+
+  DEFINE_SIZE_ARRAY_SIZED (1, ranges);
 };
 
 struct SuppEncoding {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -141,30 +139,29 @@ struct SuppEncoding {
 };
 
 struct CFF1SuppEncData {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (c->check_struct (this) && ((nSups == 0) || (supps[nSups - 1]).sanitize (c)));
+    return_trace (supps.sanitize (c));
   }
 
-  inline void get_codes (hb_codepoint_t sid, hb_vector_t<hb_codepoint_t> &codes) const
+  void get_codes (hb_codepoint_t sid, hb_vector_t<hb_codepoint_t> &codes) const
   {
-    for (unsigned int i = 0; i < nSups; i++)
+    for (unsigned int i = 0; i < nSups (); i++)
       if (sid == supps[i].glyph)
 	codes.push (supps[i].code);
   }
 
-  inline unsigned int get_size (void) const
-  { return HBUINT8::static_size + SuppEncoding::static_size * nSups; }
+  HBUINT8 &nSups () { return supps.len; }
+  HBUINT8 nSups () const { return supps.len; }
 
-  HBUINT8	 nSups;
-  SuppEncoding   supps[VAR];
+  ArrayOf<SuppEncoding, HBUINT8> supps;
 
-  DEFINE_SIZE_ARRAY (1, supps);
+  DEFINE_SIZE_ARRAY_SIZED (1, supps);
 };
 
 struct Encoding {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
 
@@ -179,7 +176,7 @@ struct Encoding {
   }
 
   /* serialize a fullset Encoding */
-  inline bool serialize (hb_serialize_context_t *c, const Encoding &src)
+  bool serialize (hb_serialize_context_t *c, const Encoding &src)
   {
     TRACE_SERIALIZE (this);
     unsigned int size = src.get_size ();
@@ -190,48 +187,50 @@ struct Encoding {
   }
 
   /* serialize a subset Encoding */
-  inline bool serialize (hb_serialize_context_t *c,
-			 uint8_t format,
-			 unsigned int enc_count,
-			 const hb_vector_t<code_pair>& code_ranges,
-			 const hb_vector_t<code_pair>& supp_codes)
+  bool serialize (hb_serialize_context_t *c,
+		  uint8_t format,
+		  unsigned int enc_count,
+		  const hb_vector_t<code_pair_t>& code_ranges,
+		  const hb_vector_t<code_pair_t>& supp_codes)
   {
     TRACE_SERIALIZE (this);
     Encoding *dest = c->extend_min (*this);
     if (unlikely (dest == nullptr)) return_trace (false);
-    dest->format.set (format | ((supp_codes.len > 0)? 0x80: 0));
+    dest->format.set (format | ((supp_codes.length > 0)? 0x80: 0));
     if (format == 0)
     {
       Encoding0 *fmt0 = c->allocate_size<Encoding0> (Encoding0::min_size + HBUINT8::static_size * enc_count);
     if (unlikely (fmt0 == nullptr)) return_trace (false);
-      fmt0->nCodes.set (enc_count);
+      fmt0->nCodes ().set (enc_count);
       unsigned int glyph = 0;
-      for (unsigned int i = 0; i < code_ranges.len; i++)
+      for (unsigned int i = 0; i < code_ranges.length; i++)
       {
 	hb_codepoint_t code = code_ranges[i].code;
 	for (int left = (int)code_ranges[i].glyph; left >= 0; left--)
 	  fmt0->codes[glyph++].set (code++);
-	assert ((glyph <= 0x100) && (code <= 0x100));
+	if (unlikely (!((glyph <= 0x100) && (code <= 0x100))))
+	  return_trace (false);
       }
     }
     else
     {
-      Encoding1 *fmt1 = c->allocate_size<Encoding1> (Encoding1::min_size + Encoding1_Range::static_size * code_ranges.len);
+      Encoding1 *fmt1 = c->allocate_size<Encoding1> (Encoding1::min_size + Encoding1_Range::static_size * code_ranges.length);
       if (unlikely (fmt1 == nullptr)) return_trace (false);
-      fmt1->nRanges.set (code_ranges.len);
-      for (unsigned int i = 0; i < code_ranges.len; i++)
+      fmt1->nRanges ().set (code_ranges.length);
+      for (unsigned int i = 0; i < code_ranges.length; i++)
       {
-	assert ((code_ranges[i].code <= 0xFF) && (code_ranges[i].glyph <= 0xFF));
+	if (unlikely (!((code_ranges[i].code <= 0xFF) && (code_ranges[i].glyph <= 0xFF))))
+	  return_trace (false);
 	fmt1->ranges[i].first.set (code_ranges[i].code);
 	fmt1->ranges[i].nLeft.set (code_ranges[i].glyph);
       }
     }
-    if (supp_codes.len > 0)
+    if (supp_codes.length > 0)
     {
-      CFF1SuppEncData *suppData = c->allocate_size<CFF1SuppEncData> (CFF1SuppEncData::min_size + SuppEncoding::static_size * supp_codes.len);
+      CFF1SuppEncData *suppData = c->allocate_size<CFF1SuppEncData> (CFF1SuppEncData::min_size + SuppEncoding::static_size * supp_codes.length);
       if (unlikely (suppData == nullptr)) return_trace (false);
-      suppData->nSups.set (supp_codes.len);
-      for (unsigned int i = 0; i < supp_codes.len; i++)
+      suppData->nSups ().set (supp_codes.length);
+      for (unsigned int i = 0; i < supp_codes.length; i++)
       {
 	suppData->supps[i].code.set (supp_codes[i].code);
 	suppData->supps[i].glyph.set (supp_codes[i].glyph); /* actually SID */
@@ -241,10 +240,9 @@ struct Encoding {
   }
 
   /* parallel to above: calculate the size of a subset Encoding */
-  static inline unsigned int calculate_serialized_size (
-			uint8_t format,
-			unsigned int enc_count,
-			unsigned int supp_count)
+  static unsigned int calculate_serialized_size (uint8_t format,
+						 unsigned int enc_count,
+						 unsigned int supp_count)
   {
     unsigned int  size = min_size;
     if (format == 0)
@@ -256,7 +254,7 @@ struct Encoding {
     return size;
   }
 
-  inline unsigned int get_size (void) const
+  unsigned int get_size () const
   {
     unsigned int size = min_size;
     if (table_format () == 0)
@@ -268,7 +266,7 @@ struct Encoding {
     return size;
   }
 
-  inline hb_codepoint_t get_code (hb_codepoint_t glyph) const
+  hb_codepoint_t get_code (hb_codepoint_t glyph) const
   {
     if (table_format () == 0)
       return u.format0.get_code (glyph);
@@ -276,10 +274,10 @@ struct Encoding {
       return u.format1.get_code (glyph);
   }
 
-  inline uint8_t table_format (void) const { return (format & 0x7F); }
-  inline bool  has_supplement (void) const { return (format & 0x80) != 0; }
+  uint8_t table_format () const { return (format & 0x7F); }
+  bool  has_supplement () const { return (format & 0x80) != 0; }
 
-  inline void get_supplement_codes (hb_codepoint_t sid, hb_vector_t<hb_codepoint_t> &codes) const
+  void get_supplement_codes (hb_codepoint_t sid, hb_vector_t<hb_codepoint_t> &codes) const
   {
     codes.resize (0);
     if (has_supplement ())
@@ -287,12 +285,12 @@ struct Encoding {
   }
 
   protected:
-  inline const CFF1SuppEncData &suppEncData (void) const
+  const CFF1SuppEncData &suppEncData () const
   {
     if ((format & 0x7F) == 0)
-      return StructAfter<CFF1SuppEncData> (u.format0.codes[u.format0.nCodes-1]);
+      return StructAfter<CFF1SuppEncData> (u.format0.codes[u.format0.nCodes ()-1]);
     else
-      return StructAfter<CFF1SuppEncData> (u.format1.ranges[u.format1.nRanges-1]);
+      return StructAfter<CFF1SuppEncData> (u.format1.ranges[u.format1.nRanges ()-1]);
   }
 
   public:
@@ -309,13 +307,13 @@ struct Encoding {
 
 /* Charset */
 struct Charset0 {
-  inline bool sanitize (hb_sanitize_context_t *c, unsigned int num_glyphs) const
+  bool sanitize (hb_sanitize_context_t *c, unsigned int num_glyphs) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) && sids[num_glyphs - 1].sanitize (c));
   }
 
-  inline hb_codepoint_t get_sid (hb_codepoint_t glyph) const
+  hb_codepoint_t get_sid (hb_codepoint_t glyph) const
   {
     if (glyph == 0)
       return 0;
@@ -323,7 +321,7 @@ struct Charset0 {
       return sids[glyph - 1];
   }
 
-  inline hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
+  hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
   {
     if (sid == 0)
       return 0;
@@ -336,7 +334,7 @@ struct Charset0 {
     return 0;
   }
 
-  inline unsigned int get_size (unsigned int num_glyphs) const
+  unsigned int get_size (unsigned int num_glyphs) const
   {
     assert (num_glyphs > 0);
     return HBUINT16::static_size * (num_glyphs - 1);
@@ -349,7 +347,7 @@ struct Charset0 {
 
 template <typename TYPE>
 struct Charset_Range {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -363,7 +361,7 @@ struct Charset_Range {
 
 template <typename TYPE>
 struct Charset1_2 {
-  inline bool sanitize (hb_sanitize_context_t *c, unsigned int num_glyphs) const
+  bool sanitize (hb_sanitize_context_t *c, unsigned int num_glyphs) const
   {
     TRACE_SANITIZE (this);
     if (unlikely (!c->check_struct (this)))
@@ -378,7 +376,7 @@ struct Charset1_2 {
     return_trace (true);
   }
 
-  inline hb_codepoint_t get_sid (hb_codepoint_t glyph) const
+  hb_codepoint_t get_sid (hb_codepoint_t glyph) const
   {
     if (glyph == 0) return 0;
     glyph--;
@@ -392,7 +390,7 @@ struct Charset1_2 {
     return 0;
   }
 
-  inline hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
+  hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
   {
     if (sid == 0) return 0;
     hb_codepoint_t  glyph = 1;
@@ -408,7 +406,7 @@ struct Charset1_2 {
     return 0;
   }
 
-  inline unsigned int get_size (unsigned int num_glyphs) const
+  unsigned int get_size (unsigned int num_glyphs) const
   {
     unsigned int size = HBUINT8::static_size;
     int glyph = (int)num_glyphs;
@@ -435,7 +433,7 @@ typedef Charset_Range<HBUINT8>  Charset1_Range;
 typedef Charset_Range<HBUINT16> Charset2_Range;
 
 struct Charset {
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
 
@@ -452,7 +450,7 @@ struct Charset {
   }
 
   /* serialize a fullset Charset */
-  inline bool serialize (hb_serialize_context_t *c, const Charset &src, unsigned int num_glyphs)
+  bool serialize (hb_serialize_context_t *c, const Charset &src, unsigned int num_glyphs)
   {
     TRACE_SERIALIZE (this);
     unsigned int size = src.get_size (num_glyphs);
@@ -463,10 +461,10 @@ struct Charset {
   }
 
   /* serialize a subset Charset */
-  inline bool serialize (hb_serialize_context_t *c,
-			 uint8_t format,
-			 unsigned int num_glyphs,
-			 const hb_vector_t<code_pair>& sid_ranges)
+  bool serialize (hb_serialize_context_t *c,
+		  uint8_t format,
+		  unsigned int num_glyphs,
+		  const hb_vector_t<code_pair_t>& sid_ranges)
   {
     TRACE_SERIALIZE (this);
     Charset *dest = c->extend_min (*this);
@@ -477,7 +475,7 @@ struct Charset {
       Charset0 *fmt0 = c->allocate_size<Charset0> (Charset0::min_size + HBUINT16::static_size * (num_glyphs - 1));
     if (unlikely (fmt0 == nullptr)) return_trace (false);
       unsigned int glyph = 0;
-      for (unsigned int i = 0; i < sid_ranges.len; i++)
+      for (unsigned int i = 0; i < sid_ranges.length; i++)
       {
 	hb_codepoint_t sid = sid_ranges[i].code;
 	for (int left = (int)sid_ranges[i].glyph; left >= 0; left--)
@@ -486,22 +484,24 @@ struct Charset {
     }
     else if (format == 1)
     {
-      Charset1 *fmt1 = c->allocate_size<Charset1> (Charset1::min_size + Charset1_Range::static_size * sid_ranges.len);
+      Charset1 *fmt1 = c->allocate_size<Charset1> (Charset1::min_size + Charset1_Range::static_size * sid_ranges.length);
       if (unlikely (fmt1 == nullptr)) return_trace (false);
-      for (unsigned int i = 0; i < sid_ranges.len; i++)
+      for (unsigned int i = 0; i < sid_ranges.length; i++)
       {
-	assert (sid_ranges[i].glyph <= 0xFF);
+      	if (unlikely (!(sid_ranges[i].glyph <= 0xFF)))
+	  return_trace (false);
 	fmt1->ranges[i].first.set (sid_ranges[i].code);
 	fmt1->ranges[i].nLeft.set (sid_ranges[i].glyph);
       }
     }
     else /* format 2 */
     {
-      Charset2 *fmt2 = c->allocate_size<Charset2> (Charset2::min_size + Charset2_Range::static_size * sid_ranges.len);
+      Charset2 *fmt2 = c->allocate_size<Charset2> (Charset2::min_size + Charset2_Range::static_size * sid_ranges.length);
       if (unlikely (fmt2 == nullptr)) return_trace (false);
-      for (unsigned int i = 0; i < sid_ranges.len; i++)
+      for (unsigned int i = 0; i < sid_ranges.length; i++)
       {
-	assert (sid_ranges[i].glyph <= 0xFFFF);
+      	if (unlikely (!(sid_ranges[i].glyph <= 0xFFFF)))
+	  return_trace (false);
 	fmt2->ranges[i].first.set (sid_ranges[i].code);
 	fmt2->ranges[i].nLeft.set (sid_ranges[i].glyph);
       }
@@ -510,7 +510,7 @@ struct Charset {
   }
 
   /* parallel to above: calculate the size of a subset Charset */
-  static inline unsigned int calculate_serialized_size (
+  static unsigned int calculate_serialized_size (
 			uint8_t format,
 			unsigned int count)
   {
@@ -525,7 +525,7 @@ struct Charset {
     return size;
   }
 
-  inline unsigned int get_size (unsigned int num_glyphs) const
+  unsigned int get_size (unsigned int num_glyphs) const
   {
     unsigned int size = min_size;
     if (format == 0)
@@ -537,7 +537,7 @@ struct Charset {
     return size;
   }
 
-  inline hb_codepoint_t get_sid (hb_codepoint_t glyph) const
+  hb_codepoint_t get_sid (hb_codepoint_t glyph) const
   {
     if (format == 0)
       return u.format0.get_sid (glyph);
@@ -547,7 +547,7 @@ struct Charset {
       return u.format2.get_sid (glyph);
   }
 
-  inline hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
+  hb_codepoint_t get_glyph (hb_codepoint_t sid, unsigned int num_glyphs) const
   {
     if (format == 0)
       return u.format0.get_glyph (sid, num_glyphs);
@@ -569,7 +569,8 @@ struct Charset {
 
 struct CFF1StringIndex : CFF1Index
 {
-  inline bool serialize (hb_serialize_context_t *c, const CFF1StringIndex &strings, unsigned int offSize_, const Remap &sidmap)
+  bool serialize (hb_serialize_context_t *c, const CFF1StringIndex &strings,
+		  unsigned int offSize_, const remap_t &sidmap)
   {
     TRACE_SERIALIZE (this);
     if (unlikely ((strings.count == 0) || (sidmap.get_count () == 0)))
@@ -580,7 +581,7 @@ struct CFF1StringIndex : CFF1Index
       return_trace (true);
     }
 
-    ByteStrArray bytesArray;
+    byte_str_array_t bytesArray;
     bytesArray.init ();
     if (!bytesArray.resize (sidmap.get_count ()))
       return_trace (false);
@@ -597,7 +598,7 @@ struct CFF1StringIndex : CFF1Index
   }
 
   /* in parallel to above */
-  inline unsigned int calculate_serialized_size (unsigned int &offSize /*OUT*/, const Remap &sidmap) const
+  unsigned int calculate_serialized_size (unsigned int &offSize /*OUT*/, const remap_t &sidmap) const
   {
     offSize = 0;
     if ((count == 0) || (sidmap.get_count () == 0))
@@ -613,18 +614,18 @@ struct CFF1StringIndex : CFF1Index
   }
 };
 
-struct CFF1TopDictInterpEnv : NumInterpEnv
+struct cff1_top_dict_interp_env_t : num_interp_env_t
 {
-  inline CFF1TopDictInterpEnv (void)
-    : NumInterpEnv(), prev_offset(0), last_offset(0) {}
+  cff1_top_dict_interp_env_t ()
+    : num_interp_env_t(), prev_offset(0), last_offset(0) {}
 
   unsigned int prev_offset;
   unsigned int last_offset;
 };
 
-struct NameDictValues
+struct name_dict_values_t
 {
-  enum NameDictValIndex
+  enum name_dict_val_index_t
   {
       version,
       notice,
@@ -641,19 +642,19 @@ struct NameDictValues
       ValCount
   };
 
-  inline void init (void)
+  void init ()
   {
     for (unsigned int i = 0; i < ValCount; i++)
       values[i] = CFF_UNDEF_SID;
   }
 
-  inline unsigned int& operator[] (unsigned int i)
+  unsigned int& operator[] (unsigned int i)
   { assert (i < ValCount); return values[i]; }
 
-  inline unsigned int operator[] (unsigned int i) const
+  unsigned int operator[] (unsigned int i) const
   { assert (i < ValCount); return values[i]; }
 
-  static inline enum NameDictValIndex name_op_to_index (OpCode op)
+  static enum name_dict_val_index_t name_op_to_index (op_code_t op)
   {
     switch (op) {
       default: // can't happen - just make some compiler happy
@@ -681,16 +682,16 @@ struct NameDictValues
   unsigned int  values[ValCount];
 };
 
-struct CFF1TopDictVal : OpStr
+struct cff1_top_dict_val_t : op_str_t
 {
   unsigned int  last_arg_offset;
 };
 
-struct CFF1TopDictValues : TopDictValues<CFF1TopDictVal>
+struct cff1_top_dict_values_t : top_dict_values_t<cff1_top_dict_val_t>
 {
-  inline void init (void)
+  void init ()
   {
-    TopDictValues<CFF1TopDictVal>::init ();
+    top_dict_values_t<cff1_top_dict_val_t>::init ();
 
     nameSIDs.init ();
     ros_supplement = 0;
@@ -700,16 +701,12 @@ struct CFF1TopDictValues : TopDictValues<CFF1TopDictVal>
     FDSelectOffset = 0;
     privateDictInfo.init ();
   }
+  void fini () { top_dict_values_t<cff1_top_dict_val_t>::fini (); }
 
-  inline void fini (void)
-  {
-    TopDictValues<CFF1TopDictVal>::fini ();
-  }
+  bool is_CID () const
+  { return nameSIDs[name_dict_values_t::registry] != CFF_UNDEF_SID; }
 
-  inline bool is_CID (void) const
-  { return nameSIDs[NameDictValues::registry] != CFF_UNDEF_SID; }
-
-  NameDictValues  nameSIDs;
+  name_dict_values_t  nameSIDs;
   unsigned int    ros_supplement_offset;
   unsigned int    ros_supplement;
   unsigned int    cidCount;
@@ -717,14 +714,14 @@ struct CFF1TopDictValues : TopDictValues<CFF1TopDictVal>
   unsigned int    EncodingOffset;
   unsigned int    CharsetOffset;
   unsigned int    FDSelectOffset;
-  TableInfo       privateDictInfo;
+  table_info_t       privateDictInfo;
 };
 
-struct CFF1TopDictOpSet : TopDictOpSet<CFF1TopDictVal>
+struct cff1_top_dict_opset_t : top_dict_opset_t<cff1_top_dict_val_t>
 {
-  static inline void process_op (OpCode op, CFF1TopDictInterpEnv& env, CFF1TopDictValues& dictval)
+  static void process_op (op_code_t op, cff1_top_dict_interp_env_t& env, cff1_top_dict_values_t& dictval)
   {
-    CFF1TopDictVal  val;
+    cff1_top_dict_val_t  val;
     val.last_arg_offset = (env.last_offset-1) - dictval.opStart;  /* offset to the last argument */
 
     switch (op) {
@@ -736,7 +733,7 @@ struct CFF1TopDictOpSet : TopDictOpSet<CFF1TopDictVal>
       case OpCode_Weight:
       case OpCode_PostScript:
       case OpCode_BaseFontName:
-	dictval.nameSIDs[NameDictValues::name_op_to_index (op)] = env.argStack.pop_uint ();
+	dictval.nameSIDs[name_dict_values_t::name_op_to_index (op)] = env.argStack.pop_uint ();
 	env.clear_args ();
 	break;
       case OpCode_isFixedPitch:
@@ -765,8 +762,8 @@ struct CFF1TopDictOpSet : TopDictOpSet<CFF1TopDictVal>
 
       case OpCode_ROS:
 	dictval.ros_supplement = env.argStack.pop_uint ();
-	dictval.nameSIDs[NameDictValues::ordering] = env.argStack.pop_uint ();
-	dictval.nameSIDs[NameDictValues::registry] = env.argStack.pop_uint ();
+	dictval.nameSIDs[name_dict_values_t::ordering] = env.argStack.pop_uint ();
+	dictval.nameSIDs[name_dict_values_t::registry] = env.argStack.pop_uint ();
 	env.clear_args ();
 	break;
 
@@ -794,8 +791,8 @@ struct CFF1TopDictOpSet : TopDictOpSet<CFF1TopDictVal>
 	break;
 
       default:
-	env.last_offset = env.substr.offset;
-	TopDictOpSet<CFF1TopDictVal>::process_op (op, env, dictval);
+	env.last_offset = env.str_ref.offset;
+	top_dict_opset_t<cff1_top_dict_val_t>::process_op (op, env, dictval);
 	/* Record this operand below if stack is empty, otherwise done */
 	if (!env.argStack.is_empty ()) return;
 	break;
@@ -803,31 +800,27 @@ struct CFF1TopDictOpSet : TopDictOpSet<CFF1TopDictVal>
 
     if (unlikely (env.in_error ())) return;
 
-    dictval.add_op (op, env.substr, val);
+    dictval.add_op (op, env.str_ref, val);
   }
 };
 
-struct CFF1FontDictValues : DictValues<OpStr>
+struct cff1_font_dict_values_t : dict_values_t<op_str_t>
 {
-  inline void init (void)
+  void init ()
   {
-    DictValues<OpStr>::init ();
+    dict_values_t<op_str_t>::init ();
     privateDictInfo.init ();
     fontName = CFF_UNDEF_SID;
   }
+  void fini () { dict_values_t<op_str_t>::fini (); }
 
-  inline void fini (void)
-  {
-    DictValues<OpStr>::fini ();
-  }
-
-  TableInfo       privateDictInfo;
+  table_info_t       privateDictInfo;
   unsigned int    fontName;
 };
 
-struct CFF1FontDictOpSet : DictOpSet
+struct cff1_font_dict_opset_t : dict_opset_t
 {
-  static inline void process_op (OpCode op, NumInterpEnv& env, CFF1FontDictValues& dictval)
+  static void process_op (op_code_t op, num_interp_env_t& env, cff1_font_dict_values_t& dictval)
   {
     switch (op) {
       case OpCode_FontName:
@@ -845,40 +838,36 @@ struct CFF1FontDictOpSet : DictOpSet
 	break;
 
       default:
-	DictOpSet::process_op (op, env);
+	dict_opset_t::process_op (op, env);
 	if (!env.argStack.is_empty ()) return;
 	break;
     }
 
     if (unlikely (env.in_error ())) return;
 
-    dictval.add_op (op, env.substr);
+    dictval.add_op (op, env.str_ref);
   }
 };
 
 template <typename VAL>
-struct CFF1PrivateDictValues_Base : DictValues<VAL>
+struct cff1_private_dict_values_base_t : dict_values_t<VAL>
 {
-  inline void init (void)
+  void init ()
   {
-    DictValues<VAL>::init ();
+    dict_values_t<VAL>::init ();
     subrsOffset = 0;
     localSubrs = &Null(CFF1Subrs);
   }
+  void fini () { dict_values_t<VAL>::fini (); }
 
-  inline void fini (void)
-  {
-    DictValues<VAL>::fini ();
-  }
-
-  inline unsigned int calculate_serialized_size (void) const
+  unsigned int calculate_serialized_size () const
   {
     unsigned int size = 0;
-    for (unsigned int i = 0; i < DictValues<VAL>::get_count; i++)
-      if (DictValues<VAL>::get_value (i).op == OpCode_Subrs)
+    for (unsigned int i = 0; i < dict_values_t<VAL>::get_count; i++)
+      if (dict_values_t<VAL>::get_value (i).op == OpCode_Subrs)
 	size += OpCode_Size (OpCode_shortint) + 2 + OpCode_Size (OpCode_Subrs);
       else
-	size += DictValues<VAL>::get_value (i).str.len;
+	size += dict_values_t<VAL>::get_value (i).str.length;
     return size;
   }
 
@@ -886,14 +875,14 @@ struct CFF1PrivateDictValues_Base : DictValues<VAL>
   const CFF1Subrs    *localSubrs;
 };
 
-typedef CFF1PrivateDictValues_Base<OpStr> CFF1PrivateDictValues_Subset;
-typedef CFF1PrivateDictValues_Base<NumDictVal> CFF1PrivateDictValues;
+typedef cff1_private_dict_values_base_t<op_str_t> cff1_private_dict_values_subset_t;
+typedef cff1_private_dict_values_base_t<num_dict_val_t> cff1_private_dict_values_t;
 
-struct CFF1PrivateDictOpSet : DictOpSet
+struct cff1_private_dict_opset_t : dict_opset_t
 {
-  static inline void process_op (OpCode op, NumInterpEnv& env, CFF1PrivateDictValues& dictval)
+  static void process_op (op_code_t op, num_interp_env_t& env, cff1_private_dict_values_t& dictval)
   {
-    NumDictVal val;
+    num_dict_val_t val;
     val.init ();
 
     switch (op) {
@@ -925,20 +914,20 @@ struct CFF1PrivateDictOpSet : DictOpSet
 	break;
 
       default:
-	DictOpSet::process_op (op, env);
+	dict_opset_t::process_op (op, env);
 	if (!env.argStack.is_empty ()) return;
 	break;
     }
 
     if (unlikely (env.in_error ())) return;
 
-    dictval.add_op (op, env.substr, val);
+    dictval.add_op (op, env.str_ref, val);
   }
 };
 
-struct CFF1PrivateDictOpSet_Subset : DictOpSet
+struct cff1_private_dict_opset_subset : dict_opset_t
 {
-  static inline void process_op (OpCode op, NumInterpEnv& env, CFF1PrivateDictValues_Subset& dictval)
+  static void process_op (op_code_t op, num_interp_env_t& env, cff1_private_dict_values_subset_t& dictval)
   {
     switch (op) {
       case OpCode_BlueValues:
@@ -967,25 +956,24 @@ struct CFF1PrivateDictOpSet_Subset : DictOpSet
 	break;
 
       default:
-	DictOpSet::process_op (op, env);
+	dict_opset_t::process_op (op, env);
 	if (!env.argStack.is_empty ()) return;
 	break;
     }
 
     if (unlikely (env.in_error ())) return;
 
-    dictval.add_op (op, env.substr);
+    dictval.add_op (op, env.str_ref);
   }
 };
 
-typedef DictInterpreter<CFF1TopDictOpSet, CFF1TopDictValues, CFF1TopDictInterpEnv> CFF1TopDict_Interpreter;
-typedef DictInterpreter<CFF1FontDictOpSet, CFF1FontDictValues> CFF1FontDict_Interpreter;
-typedef DictInterpreter<CFF1PrivateDictOpSet, CFF1PrivateDictValues> CFF1PrivateDict_Interpreter;
+typedef dict_interpreter_t<cff1_top_dict_opset_t, cff1_top_dict_values_t, cff1_top_dict_interp_env_t> cff1_top_dict_interpreter_t;
+typedef dict_interpreter_t<cff1_font_dict_opset_t, cff1_font_dict_values_t> cff1_font_dict_interpreter_t;
 
 typedef CFF1Index CFF1NameIndex;
 typedef CFF1IndexOf<TopDict> CFF1TopDictIndex;
 
-}; /* namespace CFF */
+} /* namespace CFF */
 
 namespace OT {
 
@@ -993,9 +981,9 @@ using namespace CFF;
 
 struct cff1
 {
-  static const hb_tag_t tableTag	= HB_OT_TAG_cff1;
+  static constexpr hb_tag_t tableTag = HB_OT_TAG_cff1;
 
-  inline bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
@@ -1005,7 +993,7 @@ struct cff1
   template <typename PRIVOPSET, typename PRIVDICTVAL>
   struct accelerator_templ_t
   {
-    inline void init (hb_face_t *face)
+    void init (hb_face_t *face)
     {
       topDict.init ();
       fontDicts.init ();
@@ -1031,9 +1019,9 @@ struct cff1
       { fini (); return; }
 
       { /* parse top dict */
-	const ByteStr topDictStr = (*topDictIndex)[0];
+	const byte_str_t topDictStr = (*topDictIndex)[0];
 	if (unlikely (!topDictStr.sanitize (&sc))) { fini (); return; }
-	CFF1TopDict_Interpreter top_interp;
+	cff1_top_dict_interpreter_t top_interp;
 	top_interp.env.init (topDictStr);
 	topDict.init ();
 	if (unlikely (!top_interp.interpret (topDict))) { fini (); return; }
@@ -1090,24 +1078,24 @@ struct cff1
       {
 	for (unsigned int i = 0; i < fdCount; i++)
 	{
-	  ByteStr fontDictStr = (*fdArray)[i];
+	  byte_str_t fontDictStr = (*fdArray)[i];
 	  if (unlikely (!fontDictStr.sanitize (&sc))) { fini (); return; }
-	  CFF1FontDictValues  *font;
-	  CFF1FontDict_Interpreter font_interp;
+	  cff1_font_dict_values_t  *font;
+	  cff1_font_dict_interpreter_t font_interp;
 	  font_interp.env.init (fontDictStr);
 	  font = fontDicts.push ();
-	  if (unlikely (font == &Crap(CFF1FontDictValues))) { fini (); return; }
+	  if (unlikely (font == &Crap(cff1_font_dict_values_t))) { fini (); return; }
 	  font->init ();
 	  if (unlikely (!font_interp.interpret (*font))) { fini (); return; }
 	  PRIVDICTVAL  *priv = &privateDicts[i];
-	  const ByteStr privDictStr (StructAtOffset<UnsizedByteStr> (cff, font->privateDictInfo.offset), font->privateDictInfo.size);
+	  const byte_str_t privDictStr (StructAtOffset<UnsizedByteStr> (cff, font->privateDictInfo.offset), font->privateDictInfo.size);
 	  if (unlikely (!privDictStr.sanitize (&sc))) { fini (); return; }
-	  DictInterpreter<PRIVOPSET, PRIVDICTVAL> priv_interp;
+	  dict_interpreter_t<PRIVOPSET, PRIVDICTVAL> priv_interp;
 	  priv_interp.env.init (privDictStr);
 	  priv->init ();
 	  if (unlikely (!priv_interp.interpret (*priv))) { fini (); return; }
 
-	  priv->localSubrs = &StructAtOffsetOrNull<CFF1Subrs> (privDictStr.str, priv->subrsOffset);
+	  priv->localSubrs = &StructAtOffsetOrNull<CFF1Subrs> (&privDictStr, priv->subrsOffset);
 	  if (priv->localSubrs != &Null(CFF1Subrs) &&
 	      unlikely (!priv->localSubrs->sanitize (&sc)))
 	  { fini (); return; }
@@ -1115,24 +1103,24 @@ struct cff1
       }
       else  /* non-CID */
       {
-	CFF1TopDictValues  *font = &topDict;
+	cff1_top_dict_values_t  *font = &topDict;
 	PRIVDICTVAL  *priv = &privateDicts[0];
 
-	const ByteStr privDictStr (StructAtOffset<UnsizedByteStr> (cff, font->privateDictInfo.offset), font->privateDictInfo.size);
+	const byte_str_t privDictStr (StructAtOffset<UnsizedByteStr> (cff, font->privateDictInfo.offset), font->privateDictInfo.size);
 	if (unlikely (!privDictStr.sanitize (&sc))) { fini (); return; }
-	DictInterpreter<PRIVOPSET, PRIVDICTVAL> priv_interp;
+	dict_interpreter_t<PRIVOPSET, PRIVDICTVAL> priv_interp;
 	priv_interp.env.init (privDictStr);
 	priv->init ();
 	if (unlikely (!priv_interp.interpret (*priv))) { fini (); return; }
 
-	priv->localSubrs = &StructAtOffsetOrNull<CFF1Subrs> (privDictStr.str, priv->subrsOffset);
+	priv->localSubrs = &StructAtOffsetOrNull<CFF1Subrs> (&privDictStr, priv->subrsOffset);
 	if (priv->localSubrs != &Null(CFF1Subrs) &&
 	    unlikely (!priv->localSubrs->sanitize (&sc)))
 	{ fini (); return; }
       }
     }
 
-    inline void fini (void)
+    void fini ()
     {
       sc.end_processing ();
       topDict.fini ();
@@ -1142,12 +1130,12 @@ struct cff1
       blob = nullptr;
     }
 
-    inline bool is_valid (void) const { return blob != nullptr; }
-    inline bool is_CID (void) const { return topDict.is_CID (); }
+    bool is_valid () const { return blob != nullptr; }
+    bool is_CID () const { return topDict.is_CID (); }
 
-    inline bool is_predef_charset (void) const { return topDict.CharsetOffset <= ExpertSubsetCharset; }
+    bool is_predef_charset () const { return topDict.CharsetOffset <= ExpertSubsetCharset; }
 
-    inline unsigned int  std_code_to_glyph (hb_codepoint_t code) const
+    unsigned int std_code_to_glyph (hb_codepoint_t code) const
     {
       hb_codepoint_t sid = lookup_standard_encoding_for_sid (code);
       if (unlikely (sid == CFF_UNDEF_SID))
@@ -1175,22 +1163,22 @@ struct cff1
     const CFF1FDSelect      *fdSelect;
     unsigned int	    fdCount;
 
-    CFF1TopDictValues       topDict;
-    hb_vector_t<CFF1FontDictValues>   fontDicts;
+    cff1_top_dict_values_t       topDict;
+    hb_vector_t<cff1_font_dict_values_t>   fontDicts;
     hb_vector_t<PRIVDICTVAL>	  privateDicts;
 
     unsigned int	    num_glyphs;
   };
 
-  struct accelerator_t : accelerator_templ_t<CFF1PrivateDictOpSet, CFF1PrivateDictValues>
+  struct accelerator_t : accelerator_templ_t<cff1_private_dict_opset_t, cff1_private_dict_values_t>
   {
     HB_INTERNAL bool get_extents (hb_codepoint_t glyph, hb_glyph_extents_t *extents) const;
     HB_INTERNAL bool get_seac_components (hb_codepoint_t glyph, hb_codepoint_t *base, hb_codepoint_t *accent) const;
   };
 
-  struct accelerator_subset_t : accelerator_templ_t<CFF1PrivateDictOpSet_Subset, CFF1PrivateDictValues_Subset>
+  struct accelerator_subset_t : accelerator_templ_t<cff1_private_dict_opset_subset, cff1_private_dict_values_subset_t>
   {
-    inline void init (hb_face_t *face)
+    void init (hb_face_t *face)
     {
       SUPER::init (face);
       if (blob == nullptr) return;
@@ -1211,9 +1199,9 @@ struct cff1
       }
     }
 
-    inline bool is_predef_encoding (void) const { return topDict.EncodingOffset <= ExpertEncoding; }
+    bool is_predef_encoding () const { return topDict.EncodingOffset <= ExpertEncoding; }
 
-    inline hb_codepoint_t  glyph_to_code (hb_codepoint_t glyph) const
+    hb_codepoint_t  glyph_to_code (hb_codepoint_t glyph) const
     {
       if (encoding != &Null(Encoding))
 	return encoding->get_code (glyph);
@@ -1237,7 +1225,7 @@ struct cff1
       }
     }
 
-    inline hb_codepoint_t  glyph_to_sid (hb_codepoint_t glyph) const
+    hb_codepoint_t glyph_to_sid (hb_codepoint_t glyph) const
     {
       if (charset != &Null(Charset))
 	return charset->get_sid (glyph);
@@ -1265,10 +1253,10 @@ struct cff1
     const Encoding	  *encoding;
 
     private:
-    typedef accelerator_templ_t<CFF1PrivateDictOpSet_Subset, CFF1PrivateDictValues_Subset> SUPER;
+    typedef accelerator_templ_t<cff1_private_dict_opset_subset, cff1_private_dict_values_subset_t> SUPER;
   };
 
-  inline bool subset (hb_subset_plan_t *plan) const
+  bool subset (hb_subset_plan_t *plan) const
   {
     hb_blob_t *cff_prime = nullptr;
 
